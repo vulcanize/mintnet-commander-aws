@@ -1,2 +1,2 @@
 # ethermint-testing
-Tools to run ethermint network tests
+Tools to run [ethermint](https://github.com/tendermint/ethermint) network tests
