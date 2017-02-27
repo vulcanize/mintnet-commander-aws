@@ -86,6 +86,8 @@ class Chainshotter:
             }
             results[instances].append(snapshot_info)
 
+        print(results)
+
         with open(filename, 'w') as f:
             json.dump(results, f, indent=2)
 

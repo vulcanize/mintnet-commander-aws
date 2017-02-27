@@ -54,7 +54,8 @@ class AMIBuilder:
 
         build_result = p.build(parallel=True, debug=False, force=False)
 
-        s = str(build_result[-1])
+        # retrieve the AMI ID from the command output
+        s = str(filter(lambda line: line != '', build_result.stdout.split('\n'))[-1])
         ami = s[s.find(":") + 1:-3].strip()
         return ami
 
