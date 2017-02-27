@@ -1,10 +1,14 @@
 import os
+import logging
 
 import boto3
 import time
 
 from settings import DEFAULT_PORTS, DEFAULT_REGION, DEFAULT_INSTANCE_TYPE, DEFAULT_INSTANCE_NAME, \
     DEFAULT_SECURITY_GROUP_DESCRIPTION
+
+
+logger = logging.getLogger()
 
 
 class Chainmaker:
@@ -25,6 +29,7 @@ class Chainmaker:
                     'IpRanges': [{'CidrIp': '0.0.0.0/0'}]
                 },
             ])
+        logger.info("Security group {} created".format(name))
 
     def create(self, ami, number):
         # for now, only the default region and the default names
@@ -60,7 +65,9 @@ class Chainmaker:
                 },
             ])
             instances.append(instance)
+            logger.info("Created instance with ID {}".format(instance.id))
 
+        logger.info("Waiting for instances to initialize properly")
         # wait for instances to initialize properly
         pending_instances = list(self.ec2.instances.filter(
             Filters=[{'Name': 'instance-state-name', 'Values': ['pending']}]))
@@ -68,6 +75,7 @@ class Chainmaker:
         waiter.wait(InstanceIds=[instance.id for instance in pending_instances])
         for instance in instances:
             instance.reload()
-            print('Instance {0} is running, public IP: {1}'.format(instance.id , instance.public_ip_address))
+            logger.info('Instance {0} is running, public IP: {1}'.format(instance.id , instance.public_ip_address))
+        logger.info("All instances running")
 
         return instances

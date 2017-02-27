@@ -1,5 +1,6 @@
 import json
 import os
+import logging
 from os.path import expanduser
 
 from copy import deepcopy
@@ -8,6 +9,9 @@ import boto3
 import packer
 
 from settings import DEFAULT_REGION, DEFAULT_INSTANCE_TYPE, DEFAULT_AMIS, PACKER_PATH
+
+
+logger = logging.getLogger()
 
 
 class AMIBuilder:
@@ -33,6 +37,7 @@ class AMIBuilder:
         aws_file = os.path.join(packer_file_path, packer_file_name + '.yml')
         with open(aws_file, 'w') as f:
             json.dump(config, f, indent=2)
+        logger.info("Packer file {} saved successfully".format(packer_file_name))
         return aws_file
 
     def _build_ami_image(self, packer_file, access_key, secret_key):
@@ -49,7 +54,7 @@ class AMIBuilder:
 
         validation_result = p.validate(syntax_only=False)
         if not validation_result.succeeded:
-            print("Unable to do packer build, error while validating template: {}".format(validation_result.error))
+            logger.error("Unable to do packer build, error while validating template: {}".format(validation_result.error))
             return
 
         build_result = p.build(parallel=True, debug=False, force=False)
@@ -57,6 +62,7 @@ class AMIBuilder:
         # retrieve the AMI ID from the command output
         s = str(filter(lambda line: line != '', build_result.stdout.split('\n'))[-1])
         ami = s[s.find(":") + 1:-3].strip()
+        logger.info("AMI {} created successfully".format(ami))
         return ami
 
     def _get_credentials(self):
@@ -74,7 +80,5 @@ class AMIBuilder:
         Creates an AMI in AWS in DEFAULT_REGION and returns its ID
         """
         packer_file = self._generate_packer_file(packer_builder_config, ami_name, packer_file_name=packer_file_name)
-        with open(packer_file, 'r') as f:
-            print(f.readlines())
         access_key, secret_key = self._get_credentials()
         return self._build_ami_image(packer_file, access_key, secret_key)

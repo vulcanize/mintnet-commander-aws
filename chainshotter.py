@@ -1,10 +1,14 @@
 import json
 import os
+import logging
 
 import boto3
 
 from commands import command_mount_volume, command_perform_rsync, command_unmount_volume
 from settings import DEFAULT_SNAPSHOT_VOLUME_SIZE, DEFAULT_DEVICE, BACKUP_DIRS, DEFAULT_SSH_OPTIONS
+
+
+logger = logging.getLogger()
 
 
 class Chainshotter:
@@ -22,7 +26,7 @@ class Chainshotter:
         """
         volume = self.ec2.Volume(volume_id)
         volume.attach_to_instance(InstanceId=instance.id, Device=DEFAULT_DEVICE)
-        print("Volume attached to instance")
+        logger.info("Volume {} attached to instance {}".format(volume_id, instance.id))
 
         # wait for volume
         waiter = self.ec2_client.get_waiter('volume_in_use')
@@ -32,17 +36,19 @@ class Chainshotter:
 
         os.system(command_mount_volume(ssh_params, instance.public_ip_address, DEFAULT_DEVICE))
 
-        print 'Beginning rsync'
+        logger.info('Beginning rsync')
         for backup_dir in BACKUP_DIRS:
             os.system(command_perform_rsync(ssh_params, instance.public_ip_address, backup_dir))
-        print 'Rsync complete'
+        logger.info('Rsync complete')
 
-        print 'Unmounting and detaching volume'
+        logger.info('Unmounting and detaching volume {}'.format(volume_id))
         os.system(command_unmount_volume(ssh_params, instance.public_ip_address))
         volume.detach_from_instance(InstanceId=instance.id)
-        print 'Waiting for volume to switch to Available state'
+
+        logger.info('Waiting for volume {} to switch to Available state'.format(volume_id))
         waiter = self.ec2_client.get_waiter('volume_available')
         waiter.wait(VolumeIds=[volume_id])
+        logger.info('Volume {} available'.format(volume_id))
 
     def chainshot(self, name, instances, filename="chainshot_info.json"):
         """
@@ -63,12 +69,12 @@ class Chainshotter:
             volume_info = self.ec2.create_volume(Size=DEFAULT_SNAPSHOT_VOLUME_SIZE,
                                                  # TODO calculate that using the instance
                                                  AvailabilityZone=instance.placement["AvailabilityZone"])
-            print("Volume created")
             volume_id = volume_info["VolumeId"]
+            logger.info("Volume {} created".format(volume_id))
 
             self._snapshot_to_volume(instance, volume_id)
+            logger.info("Finished snapshotting")
 
-            print("FINISHED")
             snapshot_info = {
                 "instance_id": instance.id,
                 "instace_region": instance.placement["AvailabilityZone"],
@@ -86,7 +92,7 @@ class Chainshotter:
             }
             results[instances].append(snapshot_info)
 
-        print(results)
+        logger.info(results)
 
         with open(filename, 'w') as f:
             json.dump(results, f, indent=2)
