@@ -10,6 +10,7 @@ from settings import DEFAULT_PORTS, DEFAULT_REGION, DEFAULT_INSTANCE_TYPE, DEFAU
 class Chainmaker:
     def __init__(self):
         self.ec2 = boto3.resource('ec2')
+        self.ec2_client = boto3.client('ec2')
 
     def _create_security_group(self, name, ports):
         # TODO allow more complex ports definition
@@ -39,6 +40,7 @@ class Chainmaker:
             timestamp = "salt-instance" + str(int(time.time()))
             keyfile = timestamp + ".pem"
             # allow to ssh into ec2
+            # TODO specify full filepath as a parameter to this function
             key = self.ec2.create_key_pair(KeyName=timestamp)
             with open(keyfile, 'w') as f:
                 f.write(key.key_material)
@@ -46,12 +48,11 @@ class Chainmaker:
 
             # create instances returns a list of instances, we want the first element
             instance = ec2res.create_instances(ImageId=ami,
-                                           InstanceType=DEFAULT_INSTANCE_TYPE,
-                                           MinCount=1,
-                                           MaxCount=1,
-                                           SecurityGroupIds=[security_group_name],
-                                           KeyName=timestamp)[0]
-            instance.wait_until_running()
+                                               InstanceType=DEFAULT_INSTANCE_TYPE,
+                                               MinCount=1,
+                                               MaxCount=1,
+                                               SecurityGroupIds=[security_group_name],
+                                               KeyName=timestamp)[0]
             instance.create_tags(Tags=[
                 {
                     'Key': 'Name',
@@ -59,5 +60,14 @@ class Chainmaker:
                 },
             ])
             instances.append(instance)
+
+        # wait for instances to initialize properly
+        pending_instances = list(self.ec2.instances.filter(
+            Filters=[{'Name': 'instance-state-name', 'Values': ['pending']}]))
+        waiter = self.ec2_client.get_waiter('instance_running')
+        waiter.wait(InstanceIds=[instance.id for instance in pending_instances])
+        for instance in instances:
+            instance.reload()
+            print('Instance {0} is running, public IP: {1}'.format(instance.id , instance.public_ip_address))
 
         return instances

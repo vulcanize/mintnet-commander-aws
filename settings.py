@@ -25,3 +25,15 @@ DEFAULT_AMIS = {
 }
 
 PACKER_PATH = "/home/agnieszka/bin/packer"
+
+# the default size of the volume to be used to snapshot a single ec2
+DEFAULT_SNAPSHOT_VOLUME_SIZE = 10  # Gb
+
+# defines where to mount volume in ec2
+DEFAULT_DEVICE = '/dev/sdh'
+
+# the list of directories which are to be snapshotted
+BACKUP_DIRS = ['/home/ubuntu/go']
+
+# TODO!
+DEFAULT_SSH_OPTIONS = lambda keyname: '-o StrictHostKeyChecking=no -i ~/{}.pem'.format(keyname)
