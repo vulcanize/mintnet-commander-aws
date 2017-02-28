@@ -16,3 +16,9 @@ def get_shh_key_file(filename):
     if not os.path.exists(full_filepath):
         raise Exception("Key file {} missing".format(full_filepath))
     return full_filepath
+
+
+def to_canonical_region_name(region):
+    if region.endswith('a') or region.endswith('b'):
+        return region[:-1]
+    return region

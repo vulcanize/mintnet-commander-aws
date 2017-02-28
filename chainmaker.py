@@ -6,7 +6,7 @@ import boto3
 
 from settings import DEFAULT_REGION, DEFAULT_INSTANCE_TYPE, DEFAULT_INSTANCE_NAME, \
     DEFAULT_SECURITY_GROUP_DESCRIPTION, DEFAULT_SNAPSHOT_VOLUME_SIZE, DEFAULT_DEVICE, DEFAULT_FILES_LOCATION
-from utils import get_shh_key_file
+from utils import get_shh_key_file, to_canonical_region_name
 
 logger = logging.getLogger(__name__)
 
@@ -46,21 +46,19 @@ class Chainmaker:
         :return: -
         """
         region = instance.placement["AvailabilityZone"]
-        zone = region
-        if region.endswith('a') or region.endswith('b'):
-            zone = region[:-1]
-        ec2 = boto3.resource('ec2', region_name=zone)
+        ec2 = boto3.resource('ec2', region_name=to_canonical_region_name(region))
 
         volume = ec2.create_volume(Size=DEFAULT_SNAPSHOT_VOLUME_SIZE,
                                    AvailabilityZone=region)
         volume = ec2.Volume(volume.id)
+        volume.create_tags(Tags=[{'Key': 'Name', 'Value': 'ethermint_volume'}])
 
         assert volume.availability_zone == instance.placement.get("AvailabilityZone")
 
         time.sleep(3)  # let things settle, volume does not exist yet :(
 
         if volume.state != 'available':
-            ec2_client = boto3.client('ec2', region_name=zone)
+            ec2_client = boto3.client('ec2', region_name=to_canonical_region_name(region))
             volume_waiter = ec2_client.get_waiter('volume_available')
             volume_waiter.wait(VolumeIds=[volume.id])
 
@@ -122,7 +120,7 @@ class Chainmaker:
         "add_volume"
         :return: instance object
         """
-        ec2 = boto3.resource('ec2', region_name=config["region"])
+        ec2 = boto3.resource('ec2', region_name=to_canonical_region_name(config["region"]))
 
         # create instances returns a list of instances, we want the first element
         instance = ec2.create_instances(ImageId=config["ami"],

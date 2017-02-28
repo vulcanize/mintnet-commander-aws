@@ -59,7 +59,7 @@ class AMIBuilder:
 
         # retrieve the AMI ID from the command output
         s = str(filter(lambda line: line != '', build_result.stdout.split('\n'))[-1])
-        ami = s[s.find(":") + 1:-3].strip()
+        ami = s[s.find(":") + 1:].strip()  # TODO a proper regex here
         logger.info("AMI {} created successfully".format(ami))
         return ami
 

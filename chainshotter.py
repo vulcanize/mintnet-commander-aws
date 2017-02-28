@@ -17,7 +17,7 @@ class Chainshotter:
         self.ec2 = boto3.resource('ec2', region_name=DEFAULT_REGION)
         self.ec2_client = boto3.client('ec2')
 
-    def chainshot(self, name, instances, filename="chainshot_info.json"):
+    def chainshot(self, name, instances, filename):
         """
         Allows to snapshot a chain and save a json file with all chainshot info
 
@@ -33,8 +33,14 @@ class Chainshotter:
         }
 
         for instance in instances:
-            # TODO choose the appropriate volume (by tags? device?)
-            volume = instance.volumes.all()[0]
+            volumes_collection = instance.volumes.filter(Filters=
+                                                  [
+                                                      {'Name': 'tag-key', 'Values': ["Name"]},
+                                                      {'Name': 'tag-value', 'Values': ['ethermint_volume']}
+                                                  ]
+            )
+            volume = list(volumes_collection)[0]
+
             logger.info("Creating snapshot of volume {} of instance {}".format(volume.id, instance.id))
 
             snapshot = self.ec2.create_snapshot(VolumeId=volume.id, Description='ethermint-backup')
@@ -47,18 +53,18 @@ class Chainshotter:
                     "ami": instance.image_id,
                     "tags": instance.tags,
                     "vpc_id": instance.vpc_id,
-                    "security_groups": instance.security_groups,
+                    "security_groups": [group["GroupName"] for group in instance.security_groups],
                     "key_name": instance.key_name,
                 },
                 "snapshot": {
                     # are those accurate?
-                    "snapshot_from": instance.created,
-                    "snapshot_to": snapshot.start_time,
+                    "snapshot_from": instance.launch_time.isoformat(),
+                    "snapshot_to": snapshot.start_time.isoformat(),
 
                     "snapshot_id": snapshot.id
                 }
             }
-            results[instances].append(snapshot_info)
+            results["instances"].append(snapshot_info)
 
         logger.info("Finished chainshotting, the results:")
         logger.info(results)
@@ -84,7 +90,7 @@ class Chainshotter:
             chainshot = json.load(json_data)
             logger.info("Thawing using file {}".format(chainshot_file))
 
-            for snapshot_info in chainshot:
+            for snapshot_info in chainshot["instances"]:
                 new_instance = chain_maker.from_json(snapshot_info["instance"])
                 logger.info("Created new instance {} from AMI {}".format(new_instance.id, new_instance.ami))
 

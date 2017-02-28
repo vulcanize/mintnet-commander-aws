@@ -22,20 +22,35 @@ ami_builder = AMIBuilder()
 chain_maker = Chainmaker()
 chain_shotter = Chainshotter()
 
-security_group_name = "ethermint-security_group"
-# chain_maker.create_security_group(security_group_name, DEFAULT_PORTS)
 
-# master_ami = ami_builder.create_ami(packer_salt_master_config, "test_salt_master_ami-1", "packer-file-salt-master")
-master_ami = "ami-ac63bcba"
-master_instances = chain_maker.create(master_ami, 1, security_group_name)
+security_group_name = "ethermint-security_group-1"
+chain_maker.create_security_group(security_group_name, DEFAULT_PORTS)
 
-ec2 = boto3.resource('ec2', region_name=DEFAULT_REGION)
-master_ip = ec2.Instance(master_instances[0].id).public_ip_address
-minion_ami = ami_builder.create_ami(packer_salt_minion_config(master_ip), "test_salt_minion_ami-1", "packer-file-salt-minion")
+ami = ami_builder.create_ami(packer_salt_master_config, "test_salt_master_ami", "packer-file-salt-master")
+master_instances = chain_maker.create(ami, 2, security_group_name)
 
-minion_instances = chain_maker.create(minion_ami, 3, security_group_name)
-
-# make sure everything is initialized properly
 time.sleep(60)
 
-chain_shotter.chainshot("my_first_test_snapshot", minion_instances)
+results = chain_shotter.chainshot("my_first_test_snapshot", master_instances, "chainshot_info.json")
+
+time.sleep(60)
+
+instances = chain_shotter.thaw("chainshot_info.json")
+
+# security_group_name = "ethermint-security_group"
+# # chain_maker.create_security_group(security_group_name, DEFAULT_PORTS)
+#
+# # master_ami = ami_builder.create_ami(packer_salt_master_config, "test_salt_master_ami-1", "packer-file-salt-master")
+# master_ami = "ami-ac63bcba"
+# master_instances = chain_maker.create(master_ami, 1, security_group_name)
+#
+# ec2 = boto3.resource('ec2', region_name=DEFAULT_REGION)
+# master_ip = ec2.Instance(master_instances[0].id).public_ip_address
+# minion_ami = ami_builder.create_ami(packer_salt_minion_config(master_ip), "test_salt_minion_ami-1", "packer-file-salt-minion")
+#
+# minion_instances = chain_maker.create(minion_ami, 3, security_group_name)
+#
+# # make sure everything is initialized properly
+# time.sleep(60)
+#
+# chain_shotter.chainshot("my_first_test_snapshot", minion_instances)
