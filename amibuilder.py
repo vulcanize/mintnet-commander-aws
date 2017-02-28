@@ -11,7 +11,7 @@ import packer
 from settings import DEFAULT_REGION, DEFAULT_INSTANCE_TYPE, DEFAULT_AMIS, PACKER_PATH
 
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 
 class AMIBuilder:

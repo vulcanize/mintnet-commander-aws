@@ -1,4 +1,6 @@
 # the list of ports to be added to the security group
+import os
+
 DEFAULT_PORTS = [22, 4505, 4506]
 
 # the default AWS region
@@ -32,8 +34,5 @@ DEFAULT_SNAPSHOT_VOLUME_SIZE = 10  # Gb
 # defines where to mount volume in ec2
 DEFAULT_DEVICE = '/dev/sdh'
 
-# the list of directories which are to be snapshotted
-BACKUP_DIRS = ['/home/ubuntu/go']
-
-# TODO!
-DEFAULT_SSH_OPTIONS = lambda keyname: '-o StrictHostKeyChecking=no -i ~/{}.pem'.format(keyname)
+# the directory where .pem files are kept and created to
+DEFAULT_KEYS_LOCATION = os.path.join(os.getcwd(), "keys")

@@ -1,54 +1,21 @@
 import json
-import os
 import logging
+import os
+import time
 
 import boto3
 
-from commands import command_mount_volume, command_perform_rsync, command_unmount_volume
-from settings import DEFAULT_SNAPSHOT_VOLUME_SIZE, DEFAULT_DEVICE, BACKUP_DIRS, DEFAULT_SSH_OPTIONS
+from chainmaker import Chainmaker
+from settings import DEFAULT_DEVICE, DEFAULT_REGION, \
+    DEFAULT_KEYS_LOCATION
 
-
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 
 class Chainshotter:
     def __init__(self):
-        self.ec2 = boto3.resource('ec2')
+        self.ec2 = boto3.resource('ec2', region_name=DEFAULT_REGION)
         self.ec2_client = boto3.client('ec2')
-
-    def _snapshot_to_volume(self, instance, volume_id):
-        """
-        Based on http://www.takaitra.com/posts/384
-        TODO a nicer way of doing this
-        :param instance:
-        :param volume_id:
-        :return:
-        """
-        volume = self.ec2.Volume(volume_id)
-        volume.attach_to_instance(InstanceId=instance.id, Device=DEFAULT_DEVICE)
-        logger.info("Volume {} attached to instance {}".format(volume_id, instance.id))
-
-        # wait for volume
-        waiter = self.ec2_client.get_waiter('volume_in_use')
-        waiter.wait(VolumeIds=[volume_id])
-
-        ssh_params = DEFAULT_SSH_OPTIONS(instance.key_name)
-
-        os.system(command_mount_volume(ssh_params, instance.public_ip_address, DEFAULT_DEVICE))
-
-        logger.info('Beginning rsync')
-        for backup_dir in BACKUP_DIRS:
-            os.system(command_perform_rsync(ssh_params, instance.public_ip_address, backup_dir))
-        logger.info('Rsync complete')
-
-        logger.info('Unmounting and detaching volume {}'.format(volume_id))
-        os.system(command_unmount_volume(ssh_params, instance.public_ip_address))
-        volume.detach_from_instance(InstanceId=instance.id)
-
-        logger.info('Waiting for volume {} to switch to Available state'.format(volume_id))
-        waiter = self.ec2_client.get_waiter('volume_available')
-        waiter.wait(VolumeIds=[volume_id])
-        logger.info('Volume {} available'.format(volume_id))
 
     def chainshot(self, name, instances, filename="chainshot_info.json"):
         """
@@ -57,7 +24,7 @@ class Chainshotter:
         :param name: the name (ID) of the snapshot
         :param instances: the list of instances to be snapshotted
         :param filename: the file where the results are saved
-        :return:
+        :return: a dictionary containing the snapshot info
         """
 
         results = {
@@ -66,29 +33,28 @@ class Chainshotter:
         }
 
         for instance in instances:
-            volume_info = self.ec2.create_volume(Size=DEFAULT_SNAPSHOT_VOLUME_SIZE,
-                                                 # TODO calculate that using the instance
-                                                 AvailabilityZone=instance.placement["AvailabilityZone"])
-            volume_id = volume_info["VolumeId"]
-            logger.info("Volume {} created".format(volume_id))
+            # TODO choose the appropriate volume (by tags? device?)
+            volume = instance.volumes.all()[0]
 
-            self._snapshot_to_volume(instance, volume_id)
-            logger.info("Finished snapshotting")
+            snapshot = self.ec2.create_snapshot(VolumeId=volume.id, Description='ethermint-backup')
 
             snapshot_info = {
-                "instance_id": instance.id,
-                "instace_region": instance.placement["AvailabilityZone"],
-                "instance_ami": instance.image_id,
-                "instance_tags": instance.tags,
-                "instance_vpc_id": instance.vpc_id,
-                "instance_security_groups": instance.security_groups,
+                "instance": {
+                    "id": instance.id,
+                    "region": instance.placement["AvailabilityZone"],
+                    "ami": instance.image_id,
+                    "tags": instance.tags,
+                    "vpc_id": instance.vpc_id,
+                    "security_groups": instance.security_groups,
+                    "key_name": instance.key_name,
+                },
+                "snapshot": {
+                    # are those accurate?
+                    "snapshot_from": instance.created,
+                    "snapshot_to": snapshot.start_time,
 
-                "volume_id": volume_id,
-                "volume_region": volume_info["AvailabilityZone"],
-
-                # only approximate
-                "snapshot_from": instance.created,
-                "snapshot_to": volume_info["CreateTime"],
+                    "snapshot_id": snapshot.id
+                }
             }
             results[instances].append(snapshot_info)
 
@@ -97,5 +63,47 @@ class Chainshotter:
         with open(filename, 'w') as f:
             json.dump(results, f, indent=2)
 
-    def thaw(self, chainshot, ami):
-        pass
+        return results
+
+    def thaw(self, chainshot_file):
+        """
+        Allows to unfreeze a chain using configuration file. For each snapshot/instance in the file,
+        it restarts the instance (by creating a new instance with the same parameters) and attaches the snapshot
+        as volume and mounts it
+
+        :param chainshot_file: the config file created by chainshot()
+        :return: a list of AWS instances
+        """
+        chain_maker = Chainmaker()
+        instances = []
+
+        with open(chainshot_file) as json_data:
+            chainshot = json.load(json_data)
+            for snapshot_info in chainshot:
+                new_instance = chain_maker.from_json(snapshot_info["instance"])
+                volume = self.ec2.create_volume(SnapshotId=snapshot_info["snapshot"]["id"],
+                                                AvailabilityZone=new_instance.placement["AvailabilityZone"])
+
+                time.sleep(10)  # let things settle
+
+                new_instance.attach_volume(VolumeId=volume.id, Device=DEFAULT_DEVICE)
+                instances.append(new_instance)
+
+                # run ./mount_snapshot.sh
+                mount_snapshot_command = lambda ssh_key, ip: \
+                    "ssh -o StrictHostKeyChecking=no -i {0} ubuntu@{1} 'bash -s' < mount_snapshot.sh".format(ssh_key, ip)
+                os.system(mount_snapshot_command(self._get_shh_key_file(snapshot_info["instance"]["key_name"]),
+                                                 new_instance.public_ip_address))
+
+        return instances
+
+    def _get_shh_key_file(self, filename):
+        """
+        A helper funtion which allows to find an SSH key file using the filename
+        :param filename:
+        :return: a full path of the key
+        """
+        full_filepath = os.path.join(DEFAULT_KEYS_LOCATION, filename)
+        if not os.path.exists(full_filepath):
+            raise Exception("Key file {} missing".format(full_filepath))
+        return full_filepath

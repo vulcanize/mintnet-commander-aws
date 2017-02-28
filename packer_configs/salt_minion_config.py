@@ -21,8 +21,11 @@ packer_salt_minion_config = lambda master_ip: {
                 "sudo service salt-minion restart",
 
                 # ethermint stuff
-                "sudo apt-get install golang git",
-                "sudo export GOPATH=$HOME/go",
+                "sudo apt-get update",
+                "sudo apt-get upgrade",  # for libperl-error
+                "sudo apt-get install -y git",
+                "sudo apt-get install -y golang",
+                "export GOPATH=$HOME/go",
                 "go get github.com/tendermint/ethermint/cmd/ethermint",
             ]
         },
