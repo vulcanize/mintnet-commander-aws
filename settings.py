@@ -26,13 +26,13 @@ DEFAULT_AMIS = {
     "us-west-2":       "ami-898dd9b9",
 }
 
-PACKER_PATH = "/home/agnieszka/bin/packer"
+PACKER_EXECUTABLE = "packer"
 
 # the default size of the volume to be used to snapshot a single ec2
 DEFAULT_SNAPSHOT_VOLUME_SIZE = 10  # Gb
 
-# defines where to mount volume in ec2
+# defines where to mount volume in ec2 by default
 DEFAULT_DEVICE = '/dev/sdh'
 
 # the directory where .pem files are kept and created to
-DEFAULT_KEYS_LOCATION = os.path.join(os.getcwd(), "keys")
+DEFAULT_FILES_LOCATION = os.path.join(os.getcwd(), "keys")

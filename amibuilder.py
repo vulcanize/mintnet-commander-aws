@@ -1,15 +1,12 @@
 import json
-import os
 import logging
-from os.path import expanduser
-
+import os
 from copy import deepcopy
 
 import boto3
 import packer
 
-from settings import DEFAULT_REGION, DEFAULT_INSTANCE_TYPE, DEFAULT_AMIS, PACKER_PATH
-
+from settings import DEFAULT_REGION, DEFAULT_INSTANCE_TYPE, DEFAULT_AMIS, PACKER_EXECUTABLE, DEFAULT_FILES_LOCATION
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +15,7 @@ class AMIBuilder:
     def __init__(self):
         pass
 
-    def _generate_packer_file(self, packer_base_config, ami_name, packer_file_path=expanduser("~"),
+    def _generate_packer_file(self, packer_base_config, ami_name, packer_file_path=DEFAULT_FILES_LOCATION,
                              packer_file_name="salt_packer", region=DEFAULT_REGION):
         """
         Adds a builder to base packer config and saves the file under packer_file_name in packer_file_path
@@ -37,6 +34,7 @@ class AMIBuilder:
         aws_file = os.path.join(packer_file_path, packer_file_name + '.yml')
         with open(aws_file, 'w') as f:
             json.dump(config, f, indent=2)
+
         logger.info("Packer file {} saved successfully".format(packer_file_name))
         return aws_file
 
@@ -50,7 +48,7 @@ class AMIBuilder:
             "aws_secret_key": secret_key
         }
 
-        p = packer.Packer(packer_file, vars=vars, exec_path=PACKER_PATH)
+        p = packer.Packer(packer_file, vars=vars, exec_path=PACKER_EXECUTABLE)
 
         validation_result = p.validate(syntax_only=False)
         if not validation_result.succeeded:

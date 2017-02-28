@@ -4,4 +4,4 @@
 sudo mkdir /ethermint
 
 # mount snapshot to /ethermint
-sudo mount /dev/xvdy /ethermint
+sudo mount /dev/xvdh /ethermint

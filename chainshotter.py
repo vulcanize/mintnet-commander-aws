@@ -6,8 +6,8 @@ import time
 import boto3
 
 from chainmaker import Chainmaker
-from settings import DEFAULT_DEVICE, DEFAULT_REGION, \
-    DEFAULT_KEYS_LOCATION
+from settings import DEFAULT_DEVICE, DEFAULT_REGION
+from utils import get_shh_key_file
 
 logger = logging.getLogger(__name__)
 
@@ -35,8 +35,10 @@ class Chainshotter:
         for instance in instances:
             # TODO choose the appropriate volume (by tags? device?)
             volume = instance.volumes.all()[0]
+            logger.info("Creating snapshot of volume {} of instance {}".format(volume.id, instance.id))
 
             snapshot = self.ec2.create_snapshot(VolumeId=volume.id, Description='ethermint-backup')
+            logger.info("Created snapshot {}".format(snapshot.id))
 
             snapshot_info = {
                 "instance": {
@@ -58,6 +60,7 @@ class Chainshotter:
             }
             results[instances].append(snapshot_info)
 
+        logger.info("Finished chainshotting, the results:")
         logger.info(results)
 
         with open(filename, 'w') as f:
@@ -79,31 +82,32 @@ class Chainshotter:
 
         with open(chainshot_file) as json_data:
             chainshot = json.load(json_data)
+            logger.info("Thawing using file {}".format(chainshot_file))
+
             for snapshot_info in chainshot:
                 new_instance = chain_maker.from_json(snapshot_info["instance"])
+                logger.info("Created new instance {} from AMI {}".format(new_instance.id, new_instance.ami))
+
                 volume = self.ec2.create_volume(SnapshotId=snapshot_info["snapshot"]["id"],
                                                 AvailabilityZone=new_instance.placement["AvailabilityZone"])
 
                 time.sleep(10)  # let things settle
 
                 new_instance.attach_volume(VolumeId=volume.id, Device=DEFAULT_DEVICE)
+                logger.info("Attached volume {} containing snapshot {} to instance {}".format(volume.id,
+                                                                                              snapshot_info["snapshot"][
+                                                                                                  "id"],
+                                                                                              new_instance.id))
+
                 instances.append(new_instance)
 
-                # run ./mount_snapshot.sh
+                logger.info("Running ./mount_snapshot.sh on instance {}".format(new_instance.id))
                 mount_snapshot_command = lambda ssh_key, ip: \
                     "ssh -o StrictHostKeyChecking=no -i {0} ubuntu@{1} 'bash -s' < mount_snapshot.sh".format(ssh_key, ip)
-                os.system(mount_snapshot_command(self._get_shh_key_file(snapshot_info["instance"]["key_name"]),
+                os.system(mount_snapshot_command(get_shh_key_file(snapshot_info["instance"]["key_name"]),
                                                  new_instance.public_ip_address))
+                logger.info("Snapshot mounted successfully")
 
         return instances
 
-    def _get_shh_key_file(self, filename):
-        """
-        A helper funtion which allows to find an SSH key file using the filename
-        :param filename:
-        :return: a full path of the key
-        """
-        full_filepath = os.path.join(DEFAULT_KEYS_LOCATION, filename)
-        if not os.path.exists(full_filepath):
-            raise Exception("Key file {} missing".format(full_filepath))
-        return full_filepath
+

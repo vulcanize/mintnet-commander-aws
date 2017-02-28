@@ -13,6 +13,11 @@ from settings import DEFAULT_PORTS, DEFAULT_REGION
 
 logging.basicConfig(level=logging.INFO)
 
+logger = logging.getLogger('chainmaker')
+logger.setLevel(logging.DEBUG)
+ch = logging.StreamHandler()
+ch.setLevel(logging.DEBUG)
+
 ami_builder = AMIBuilder()
 chain_maker = Chainmaker()
 chain_shotter = Chainshotter()
