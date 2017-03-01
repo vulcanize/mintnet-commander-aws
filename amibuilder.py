@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import re
 from copy import deepcopy
 
 import boto3
@@ -55,11 +56,12 @@ class AMIBuilder:
             logger.error("Unable to do packer build, error while validating template: {}".format(validation_result.error))
             return
 
-        build_result = p.build(parallel=True, debug=False, force=False)
+        build_result = p.build(parallel=False, debug=False, force=False)
 
         # retrieve the AMI ID from the command output
         s = str(filter(lambda line: line != '', build_result.stdout.split('\n'))[-1])
-        ami = s[s.find(":") + 1:].strip()  # TODO a proper regex here
+        ami = re.findall('ami-\w{8}', s)[0]
+        # ami = s[s.find(":") + 1:].strip()  # TODO a proper regex here
         logger.info("AMI {} created successfully".format(ami))
         return ami
 

@@ -4,9 +4,11 @@ import time
 
 import boto3
 
+from amibuilder import AMIBuilder
 from settings import DEFAULT_REGION, DEFAULT_INSTANCE_TYPE, DEFAULT_INSTANCE_NAME, \
-    DEFAULT_SECURITY_GROUP_DESCRIPTION, DEFAULT_SNAPSHOT_VOLUME_SIZE, DEFAULT_DEVICE, DEFAULT_FILES_LOCATION
-from utils import get_shh_key_file, to_canonical_region_name
+    DEFAULT_SECURITY_GROUP_DESCRIPTION, DEFAULT_SNAPSHOT_VOLUME_SIZE, DEFAULT_DEVICE, DEFAULT_FILES_LOCATION, \
+    DEFAULT_PORTS
+from utils import get_shh_key_file, to_canonical_region_name, create_keyfile
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +17,7 @@ class Chainmaker:
     def __init__(self):
         self.ec2 = boto3.resource('ec2', region_name=DEFAULT_REGION)
         self.ec2_client = boto3.client('ec2', region_name=DEFAULT_REGION)
+        self.ami_builder = AMIBuilder()
 
     def create_security_group(self, name, ports):
         """
@@ -84,16 +87,14 @@ class Chainmaker:
 
         for i in range(number):
             timestamp = "salt-instance" + str(int(time.time()))
-            keyfile = timestamp + ".pem"
 
-            key = self.ec2.create_key_pair(KeyName=timestamp)
-            full_keyfile = os.path.join(DEFAULT_FILES_LOCATION, keyfile)
-            with open(full_keyfile, 'w') as f:
-                f.write(key.key_material)
-            os.chmod(full_keyfile, 0o600)
+            # TODO allow to define a custom region config and read the data from there
+            region = DEFAULT_REGION
+
+            create_keyfile(timestamp, region)
 
             instance_config = {
-                "region": DEFAULT_REGION,
+                "region": region,
                 "ami": ami,
                 "tags": [
                     {
@@ -138,3 +139,36 @@ class Chainmaker:
         logger.info("Created instance with ID {}".format(instance.id))
 
         return instance
+
+    def create_ethermint_network(self, ethermint_nodes_count, master_ami=None, ethermint_node_ami=None,
+                                 security_group_name=None):
+        """
+        Creates an ethermint network consisting of multiple ethermint nodes and a single master node
+        For now, all the nodes are in the same region
+        :param security_group_name: The name of the security group to be used; if not given, a default group will be created
+        :param ethermint_node_ami:  The AMI in the default region which will be used to build the ethermint nodes;
+        if not provided, default AMI will be deployed
+        :param master_ami: The AMI in the default region which will be used to build master node;
+        if not provided, default master AMI will be deployed
+        :param ethermint_nodes_count: The number of ethermint nodes to be run (does not contain master node)
+        :return: A list of all instances created (including master)
+        """
+        if master_ami is None:
+            from packer_configs.salt_ssh_master_config import packer_salt_ssh_master_config
+            master_ami = self.ami_builder.create_ami(packer_salt_ssh_master_config,
+                                                     "test_salt_ssh_master_ami",
+                                                     "packer-file-salt-ssh-master")
+        if ethermint_node_ami is None:
+            from packer_configs.salt_ssh_minion_config import packer_salt_ssh_minion_config
+            ethermint_node_ami = self.ami_builder.create_ami(packer_salt_ssh_minion_config,
+                                                             "test_salt_ssh_minion_ami",
+                                                             "packer-file-salt-ssh-minion")
+
+        if security_group_name is None:
+            security_group_name = "ethermint-security_group-salt-ssh"
+            self.create_security_group(security_group_name, DEFAULT_PORTS)
+
+        master_instance = self.create(master_ami, 1, security_group_name)[0]
+        minion_instances = self.create(ethermint_node_ami, ethermint_nodes_count, security_group_name)
+        all_instances = [master_instance] + minion_instances
+        return all_instances

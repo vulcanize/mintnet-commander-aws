@@ -8,8 +8,10 @@ from chainmaker import Chainmaker
 from chainshotter import Chainshotter
 from packer_configs.salt_master_config import packer_salt_master_config
 from packer_configs.salt_minion_config import packer_salt_minion_config
-from settings import DEFAULT_PORTS, DEFAULT_REGION
-
+from packer_configs.salt_ssh_master_config import packer_salt_ssh_master_config
+from packer_configs.salt_ssh_minion_config import packer_salt_ssh_minion_config
+# from settings import DEFAULT_PORTS, DEFAULT_REGION
+from settings import DEFAULT_REGION
 
 logging.basicConfig(level=logging.INFO)
 
@@ -22,24 +24,49 @@ ami_builder = AMIBuilder()
 chain_maker = Chainmaker()
 chain_shotter = Chainshotter()
 
+DEFAULT_PORTS = [22]
+security_group_name = "ethermint-security_group-salt-ssh"
+# chain_maker.create_security_group(security_group_name, DEFAULT_PORTS)
 
-security_group_name = "ethermint-security_group-1"
-chain_maker.create_security_group(security_group_name, DEFAULT_PORTS)
+# master_ami = ami_builder.create_ami(packer_salt_ssh_master_config, "test_salt_ssh_master_ami", "packer-file-salt-ssh-mas")
+# minion_ami = ami_builder.create_ami(packer_salt_ssh_minion_config, "test_salt_ssh_minion_ami", "packer-file-salt-ssh-min")
 
-ami = ami_builder.create_ami(packer_salt_master_config, "test_salt_master_ami", "packer-file-salt-master")
-master_instances = chain_maker.create(ami, 2, security_group_name)
+master_ami = "ami-e7d108f1"
+minion_ami = "ami-10d50c06"
 
-time.sleep(60)
+instances = chain_maker.create(master_ami, 1, security_group_name)
 
-results = chain_shotter.chainshot("my_first_test_snapshot", master_instances, "chainshot_info.json")
+master_key = instances[0].key_name
 
-time.sleep(60)
-
-instances = chain_shotter.thaw("chainshot_info.json")
+minion_1_config = {
+    "region": DEFAULT_REGION,
+    "ami": minion_ami,
+    "tags": [
+        {
+            "Key": "Name",
+            "Value": "minion" + minion_ami + str(1)
+        }
+    ],
+    "security_groups": [security_group_name],
+    "key_name": master_key,
+}
+minion_instances = chain_maker.from_json(minion_1_config)
 
 # security_group_name = "ethermint-security_group"
-# # chain_maker.create_security_group(security_group_name, DEFAULT_PORTS)
+# chain_maker.create_security_group(security_group_name, DEFAULT_PORTS)
 #
+# ami = ami_builder.create_ami(packer_salt_master_config, "test_salt_master_ami", "packer-file-salt-master")
+# master_instances = chain_maker.create(ami, 2, security_group_name)
+#
+# time.sleep(60)
+#
+# results = chain_shotter.chainshot("my_first_test_snapshot", master_instances, "files/chainshot_info.json")
+#
+# time.sleep(60)
+#
+# instances = chain_shotter.thaw("files/chainshot_info.json")
+
+
 # # master_ami = ami_builder.create_ami(packer_salt_master_config, "test_salt_master_ami-1", "packer-file-salt-master")
 # master_ami = "ami-ac63bcba"
 # master_instances = chain_maker.create(master_ami, 1, security_group_name)

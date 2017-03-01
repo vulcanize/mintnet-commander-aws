@@ -1,6 +1,7 @@
 # the list of ports to be added to the security group
 import os
 
+# ssh is 22, 4505 and 4506 are needed by salt
 DEFAULT_PORTS = [22, 4505, 4506]
 
 # the default AWS region
@@ -34,5 +35,5 @@ DEFAULT_SNAPSHOT_VOLUME_SIZE = 10  # Gb
 # defines where to mount volume in ec2 by default
 DEFAULT_DEVICE = '/dev/sdh'
 
-# the directory where .pem files are kept and created to
-DEFAULT_FILES_LOCATION = os.path.join(os.getcwd(), "keys")
+# the directory where .pem files and packer config files are kept and created to
+DEFAULT_FILES_LOCATION = os.path.join(os.getcwd(), "files")
