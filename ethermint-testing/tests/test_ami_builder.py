@@ -11,9 +11,9 @@ def mockpacker():
 
 
 @pytest.fixture()
-def amibuilder(monkeypatch, mockpacker):
+def amibuilder(monkeypatch, mockpacker, tmp_dir):
     monkeypatch.setattr(packer, 'Packer', mockpacker)
-    amibuilder = AMIBuilder()
+    amibuilder = AMIBuilder(tmp_dir)
     sample_output = """
         amazon-ebs: Setting up python-msgpack (0.3.0-1ubuntu3) ...
         amazon-ebs: Setting up salt-common (2015.5.3+ds-1trusty1) ...
@@ -34,8 +34,6 @@ def amibuilder(monkeypatch, mockpacker):
 
 
 def test_ami_creation(amibuilder):
-    # this test saves a packer config in files/ :(
-    # how to skip this?
     base_config = {"builders": []}
     ami_name = "test_ami"
     amibuilder.create_ami(base_config, ami_name)

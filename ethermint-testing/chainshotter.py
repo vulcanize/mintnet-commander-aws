@@ -14,12 +14,12 @@ class Chainshotter:
     def __init__(self):
         self.ec2 = boto3.resource('ec2', region_name=DEFAULT_REGION)
         self.ec2_client = boto3.client('ec2')
-        self.chain_maker = Chainmaker()
 
-    def chainshot(self, name, instances):
+    def chainshot(self, name, instances, clean_up=True):
         """
         Allows to snapshot a chain and save a json file with all chainshot info
 
+        :param clean_up: indicates if instances should be terminated after snapshot is taken
         :param name: the name (ID) of the snapshot
         :param instances: the list of instance objects to be snapshotted
         :return: a dictionary containing the snapshot info
@@ -66,6 +66,10 @@ class Chainshotter:
             }
             results["instances"].append(snapshot_info)
 
+            if clean_up:
+                volume.delete()
+                instance.terminate()
+
         logger.info("Finished chainshotting, the results:")
         logger.info(results)
 
@@ -83,7 +87,7 @@ class Chainshotter:
         instances = []
 
         for snapshot_info in chainshot["instances"]:
-            new_instance = self.chain_maker.from_json(snapshot_info["instance"])
+            new_instance = Chainmaker.from_json(snapshot_info["instance"])[0]
             logger.info("Created new instance {} from AMI {}".format(new_instance.id, snapshot_info["instance"]["ami"]))
 
             volume = self.ec2.create_volume(SnapshotId=snapshot_info["snapshot"]["id"],

@@ -6,14 +6,10 @@ from botocore.exceptions import ClientError
 from mock import MagicMock
 from moto import mock_ec2
 
+from chainmaker import Chainmaker
 from chainshotter import Chainshotter
 from settings import DEFAULT_REGION
 from utils import to_canonical_region_name, get_shh_key_file
-
-
-@pytest.fixture()
-def mockossystem():
-    return MagicMock(os.system)
 
 
 @pytest.fixture()
@@ -87,14 +83,15 @@ def test_invalid_chainshots(chainshotter, mock_instance):
 
 
 @mock_ec2
-def test_starting_instances_and_attaching_ebs_snapshots_on_thaw(chainshotter, prepare_chainshot, mock_instance):
+def test_starting_instances_and_attaching_ebs_snapshots_on_thaw(chainshotter, prepare_chainshot, mock_instance,
+                                                                monkeypatch):
     chainshot = prepare_chainshot()
-    chainshotter.chain_maker.from_json = MagicMock(return_value=mock_instance())
+    monkeypatch.setattr(Chainmaker, 'from_json', MagicMock(return_value=[mock_instance()]))
     instances = chainshotter.thaw(chainshot)
 
     assert len(instances) == 1
 
-    chainshotter.chain_maker.from_json.assert_called_once_with(chainshot["instances"][0]["instance"])
+    Chainmaker.from_json.assert_called_once_with(chainshot["instances"][0]["instance"])
 
     assert len(list(instances[0].volumes.filter(Filters=
     [
@@ -103,12 +100,12 @@ def test_starting_instances_and_attaching_ebs_snapshots_on_thaw(chainshotter, pr
 
 
 @mock_ec2
-def test_mounting_ebs_on_thaw(chainshotter, prepare_chainshot, mock_instance, mockossystem):
+def test_mounting_ebs_on_thaw(chainshotter, prepare_chainshot, mock_instance, mockossystem, monkeypatch):
     # mount has to be done manually since the boto3 interface does not allow to do this
     # For now testing if the ssh command is correct
     chainshot = prepare_chainshot()
     instance = mock_instance()
-    chainshotter.chain_maker.from_json = MagicMock(return_value=instance)
+    monkeypatch.setattr(Chainmaker, 'from_json', MagicMock(return_value=[instance]))
     chainshotter.thaw(chainshot)
 
     mockossystem.assert_called_once_with("ssh -o StrictHostKeyChecking=no -i {0} ubuntu@{1} "

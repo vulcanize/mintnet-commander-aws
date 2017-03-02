@@ -6,8 +6,7 @@ import boto3
 
 from amibuilder import AMIBuilder
 from settings import DEFAULT_REGION, DEFAULT_INSTANCE_TYPE, DEFAULT_INSTANCE_NAME, \
-    DEFAULT_SECURITY_GROUP_DESCRIPTION, DEFAULT_SNAPSHOT_VOLUME_SIZE, DEFAULT_DEVICE, DEFAULT_FILES_LOCATION, \
-    DEFAULT_PORTS
+    DEFAULT_SECURITY_GROUP_DESCRIPTION, DEFAULT_SNAPSHOT_VOLUME_SIZE, DEFAULT_DEVICE, DEFAULT_PORTS
 from utils import get_shh_key_file, to_canonical_region_name, create_keyfile
 
 logger = logging.getLogger(__name__)
@@ -76,70 +75,37 @@ class Chainmaker:
                                          instance.public_ip_address))
         logger.info("New volume mounted successfully")
 
-    def create(self, ami, number, security_group_id):
-        """
-
-        :param ami:
-        :param number:
-        :param security_group_id:
-        :return:
-        """
-        instances = []
-
-        for i in range(number):
-            timestamp = "salt-instance" + str(int(time.time()))
-
-            # TODO allow to define a custom region config and read the data from there
-            region = DEFAULT_REGION
-
-            create_keyfile(timestamp, region)
-
-            instance_config = {
-                "region": region,
-                "ami": ami,
-                "tags": [
-                    {
-                        "Key": "Name",
-                        "Value": DEFAULT_INSTANCE_NAME + ami + str(i)
-                    }
-                ],
-                "security_groups": [security_group_id],
-                "key_name": timestamp,
-                "add_volume": True
-            }
-            instances.append(Chainmaker.from_json(instance_config))
-
-        logger.info("All {} instances running".format(number))
-        return instances
-
     @staticmethod
     def from_json(config):
         """
-        Runs an Ec2 instance based on it's config and returns the instance object
-        :param config: the config HAS TO contain the following fields:
-        "region", "ami", "tags", "security_groups", "key_name"
-        the config MAY containg also:
-        "add_volume"
-        :return: instance object
+        Runs Ec2 instances based on config and returns the list of instance objects
+        :param config: the config HAS TO contain the following fields (common for all instances):
+        "region", "ami", "security_groups", "key_name", "tags"
+        the config MAY containg also (individual), under i-th key:
+        "add_volume", "tags" (additional tags)
+        :return: a list of instance objects
         """
         ec2 = boto3.resource('ec2', region_name=to_canonical_region_name(config["region"]))
 
         # create instances returns a list of instances, we want the first element
-        instance = ec2.create_instances(ImageId=config["ami"],
-                                        InstanceType=DEFAULT_INSTANCE_TYPE,
-                                        MinCount=1,
-                                        MaxCount=1,
-                                        SecurityGroupIds=config["security_groups"],
-                                        KeyName=config["key_name"])[0]
-        instance.create_tags(Tags=config["tags"])
-        instance.wait_until_running()
+        instances = ec2.create_instances(ImageId=config["ami"],
+                                         InstanceType=DEFAULT_INSTANCE_TYPE,
+                                         MinCount=1,
+                                         MaxCount=1,
+                                         SecurityGroupIds=config["security_groups"],
+                                         KeyName=config["key_name"])
+        for i, instance in enumerate(instances):
+            if i in config:
+                instance.create_tags(Tags=config[i]["tags"])
+                instance.wait_until_running()
+                if "add_volume" in config[i] and config[i]["add_volume"]:
+                    Chainmaker.add_volume(instance)
+            if "tags" in config and config["tags"]:
+                instance.create_tags(Tags=config["tags"])
 
-        if "add_volume" in config and config["add_volume"]:
-            Chainmaker.add_volume(instance)
+            logger.info("Created instance with ID {}".format(instance.id))
 
-        logger.info("Created instance with ID {}".format(instance.id))
-
-        return instance
+        return instances
 
     def create_ethermint_network(self, ethermint_nodes_count, master_ami=None, ethermint_node_ami=None,
                                  security_group_id=None):
@@ -170,7 +136,52 @@ class Chainmaker:
             group = self.create_security_group(security_group_name, DEFAULT_PORTS)
             security_group_id = group.id
 
-        master_instance = self.create(master_ami, 1, security_group_id)[0]
-        minion_instances = self.create(ethermint_node_ami, ethermint_nodes_count, security_group_id)
-        all_instances = [master_instance] + minion_instances
-        return all_instances
+        region = DEFAULT_REGION
+
+        master_keyfile = "salt-instance-master" + str(int(time.time()))
+        create_keyfile(master_keyfile, region)
+        logger.info("Master SSH key in {}".format(master_keyfile))
+
+        master_instance_config = {
+            "region": region,
+            "ami": master_ami,
+            "security_groups": [security_group_id],
+            "key_name": master_keyfile,
+            0: {
+                "tags": [
+                    {
+                        "Key": "Name",
+                        "Value": DEFAULT_INSTANCE_NAME + master_ami
+                    }
+                ],
+                "add_volume": True
+            }
+        }
+        master_instance = Chainmaker.from_json(master_instance_config)[0]
+        logger.info("Master instance running")
+
+        # NOTE do we need separate SSH keys for each ethermint instance?
+        minion_keyfile = "salt-instance-minion" + str(int(time.time()))
+        create_keyfile(minion_keyfile, region)
+        logger.info("Minion SSH key in {}".format(minion_keyfile))
+
+        minion_instance_config = {
+            "region": region,
+            "ami": ethermint_node_ami,
+            "security_groups": [security_group_id],
+            "key_name": master_keyfile,
+        }
+        for i in range(ethermint_nodes_count):
+            minion_instance_config[i] = {
+                "tags": [
+                    {
+                        "Key": "Name",
+                        "Value": DEFAULT_INSTANCE_NAME + ethermint_node_ami + str(i)
+                    }
+                ],
+                "add_volume": True}
+
+        minion_instances = Chainmaker.from_json(minion_instance_config)
+        logger.info("All minion {} instances running".format(ethermint_nodes_count))
+
+        return master_instance, minion_instances

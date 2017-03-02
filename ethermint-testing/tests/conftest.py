@@ -1,9 +1,16 @@
+import os
 from datetime import datetime
 
 import boto3
 import pytest
+from mock import MagicMock
 
 from settings import DEFAULT_REGION, DEFAULT_INSTANCE_TYPE
+
+
+@pytest.fixture()
+def mockossystem():
+    return MagicMock(os.system)
 
 
 @pytest.fixture()
@@ -55,3 +62,8 @@ def mock_instance_with_volume(mock_instance):
         return instance
 
     return _mock_instance_with_volume
+
+
+@pytest.fixture()
+def tmp_dir(tmpdir):
+    return str(tmpdir.mkdir("files"))
