@@ -76,7 +76,7 @@ class Chainmaker:
         logger.info("New volume mounted successfully")
 
     @staticmethod
-    def from_json(config):
+    def create_ec2s_from_json(config):
         """
         Runs Ec2 instances based on config and returns the list of instance objects
         :param config: the config HAS TO contain the following fields (common for all instances):
@@ -107,34 +107,19 @@ class Chainmaker:
 
         return instances
 
-    def create_ethermint_network(self, ethermint_nodes_count, master_ami=None, ethermint_node_ami=None,
-                                 security_group_id=None):
+    def create_ethermint_network(self, ethermint_nodes_count, master_ami, ethermint_node_ami):
         """
         Creates an ethermint network consisting of multiple ethermint nodes and a single master node
         For now, all the nodes are in the same region
-        :param security_group_id: The name of the security group to be used; if not given, a default group will be created
         :param ethermint_node_ami:  The AMI in the default region which will be used to build the ethermint nodes;
-        if not provided, default AMI will be deployed
         :param master_ami: The AMI in the default region which will be used to build master node;
-        if not provided, default master AMI will be deployed
         :param ethermint_nodes_count: The number of ethermint nodes to be run (does not contain master node)
-        :return: A list of all instances created (including master)
+        :return: a master instance and a list of all other instances created
         """
-        if master_ami is None:
-            from packer_configs.salt_ssh_master_config import packer_salt_ssh_master_config
-            master_ami_builder = AMIBuilder("packer-file-salt-ssh-master")
-            master_ami = master_ami_builder.create_ami(packer_salt_ssh_master_config,
-                                                       "test_salt_ssh_master_ami")
-        if ethermint_node_ami is None:
-            from packer_configs.salt_ssh_minion_config import packer_salt_ssh_minion_config
-            minion_ami_builder = AMIBuilder("packer-file-salt-ssh-minion")
-            ethermint_node_ami = minion_ami_builder.create_ami(packer_salt_ssh_minion_config,
-                                                               "test_salt_ssh_minion_ami")
 
-        if security_group_id is None:
-            security_group_name = "ethermint-security_group-salt-ssh"
-            group = self.create_security_group(security_group_name, DEFAULT_PORTS)
-            security_group_id = group.id
+        security_group_name = "ethermint-security_group-salt-ssh"
+        group = self.create_security_group(security_group_name, DEFAULT_PORTS)
+        security_group_id = group.id
 
         region = DEFAULT_REGION
 
@@ -157,7 +142,7 @@ class Chainmaker:
                 "add_volume": True
             }
         }
-        master_instance = Chainmaker.from_json(master_instance_config)[0]
+        master_instance = Chainmaker.create_ec2s_from_json(master_instance_config)[0]
         logger.info("Master instance running")
 
         # NOTE do we need separate SSH keys for each ethermint instance?
@@ -181,7 +166,7 @@ class Chainmaker:
                 ],
                 "add_volume": True}
 
-        minion_instances = Chainmaker.from_json(minion_instance_config)
+        minion_instances = Chainmaker.create_ec2s_from_json(minion_instance_config)
         logger.info("All minion {} instances running".format(ethermint_nodes_count))
 
         return master_instance, minion_instances

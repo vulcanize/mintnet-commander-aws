@@ -87,7 +87,7 @@ class Chainshotter:
         instances = []
 
         for snapshot_info in chainshot["instances"]:
-            new_instance = Chainmaker.from_json(snapshot_info["instance"])[0]
+            new_instance = Chainmaker.create_ec2s_from_json(snapshot_info["instance"])[0]
             logger.info("Created new instance {} from AMI {}".format(new_instance.id, snapshot_info["instance"]["ami"]))
 
             volume = self.ec2.create_volume(SnapshotId=snapshot_info["snapshot"]["id"],

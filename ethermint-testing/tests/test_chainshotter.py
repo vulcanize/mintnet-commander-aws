@@ -8,7 +8,7 @@ from moto import mock_ec2
 
 from chainmaker import Chainmaker
 from chainshotter import Chainshotter
-from settings import DEFAULT_REGION
+from settings import DEFAULT_REGION, DEFAULT_DEVICE
 from utils import to_canonical_region_name, get_shh_key_file
 
 
@@ -86,17 +86,19 @@ def test_invalid_chainshots(chainshotter, mock_instance):
 def test_starting_instances_and_attaching_ebs_snapshots_on_thaw(chainshotter, prepare_chainshot, mock_instance,
                                                                 monkeypatch):
     chainshot = prepare_chainshot()
-    monkeypatch.setattr(Chainmaker, 'from_json', MagicMock(return_value=[mock_instance()]))
+    monkeypatch.setattr(Chainmaker, 'create_ec2s_from_json', MagicMock(return_value=[mock_instance()]))
     instances = chainshotter.thaw(chainshot)
 
     assert len(instances) == 1
 
-    Chainmaker.from_json.assert_called_once_with(chainshot["instances"][0]["instance"])
+    Chainmaker.create_ec2s_from_json.assert_called_once_with(chainshot["instances"][0]["instance"])
 
     assert len(list(instances[0].volumes.filter(Filters=
     [
         {'Name': 'snapshot-id', 'Values': [chainshot["instances"][0]["snapshot"]["id"]]}
     ]))) == 1
+
+    assert instances[0].block_device_mappings[1]["DeviceName"] == DEFAULT_DEVICE
 
 
 @mock_ec2
@@ -105,7 +107,7 @@ def test_mounting_ebs_on_thaw(chainshotter, prepare_chainshot, mock_instance, mo
     # For now testing if the ssh command is correct
     chainshot = prepare_chainshot()
     instance = mock_instance()
-    monkeypatch.setattr(Chainmaker, 'from_json', MagicMock(return_value=[instance]))
+    monkeypatch.setattr(Chainmaker, 'create_ec2s_from_json', MagicMock(return_value=[instance]))
     chainshotter.thaw(chainshot)
 
     mockossystem.assert_called_once_with("ssh -o StrictHostKeyChecking=no -i {0} ubuntu@{1} "
