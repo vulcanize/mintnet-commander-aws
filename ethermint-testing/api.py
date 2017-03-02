@@ -2,6 +2,7 @@ import json
 import logging
 import click
 
+from amibuilder import AMIBuilder
 from chainmaker import Chainmaker
 from chainshotter import Chainshotter
 
@@ -60,6 +61,21 @@ def thaw(env, chainshot_file):
     with open(chainshot_file) as json_data:
         chainshot = json.load(json_data)
         return env.chainshotter.thaw(chainshot)
+
+
+@ethermint_testing.command()
+@pass_environment
+def create_amis(env):
+    """
+    Builds and deploys EC2 AMIs for master and minions, returns master AMI ID and minion AMI ID
+    """
+    from packer_configs.salt_ssh_master_config import packer_salt_ssh_master_config
+    from packer_configs.salt_ssh_minion_config import packer_salt_ssh_minion_config
+    master_ami_builder = AMIBuilder("packer-file-salt-ssh-master")
+    minion_ami_builder = AMIBuilder("packer-file-salt-ssh-minion")
+    master_ami = master_ami_builder.create_ami(packer_salt_ssh_master_config, "test_salt_ssh_master_ami")
+    minion_ami = minion_ami_builder.create_ami(packer_salt_ssh_minion_config, "test_salt_ssh_minion_ami")
+    return master_ami, minion_ami
 
 
 cli = click.CommandCollection(sources=[ethermint_testing])
