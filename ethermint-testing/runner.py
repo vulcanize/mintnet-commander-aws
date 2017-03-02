@@ -20,37 +20,37 @@ logger.setLevel(logging.DEBUG)
 ch = logging.StreamHandler()
 ch.setLevel(logging.DEBUG)
 
-ami_builder = AMIBuilder()
-chain_maker = Chainmaker()
-chain_shotter = Chainshotter()
-
-DEFAULT_PORTS = [22]
-security_group_name = "ethermint-security_group-salt-ssh"
+# ami_builder = AMIBuilder()
+# chain_maker = Chainmaker()
+# chain_shotter = Chainshotter()
+#
+# DEFAULT_PORTS = [22]
+# security_group_name = "ethermint-security_group-salt-ssh"
 # chain_maker.create_security_group(security_group_name, DEFAULT_PORTS)
 
 # master_ami = ami_builder.create_ami(packer_salt_ssh_master_config, "test_salt_ssh_master_ami", "packer-file-salt-ssh-mas")
 # minion_ami = ami_builder.create_ami(packer_salt_ssh_minion_config, "test_salt_ssh_minion_ami", "packer-file-salt-ssh-min")
 
-master_ami = "ami-e7d108f1"
-minion_ami = "ami-10d50c06"
-
-instances = chain_maker.create(master_ami, 1, security_group_name)
-
-master_key = instances[0].key_name
-
-minion_1_config = {
-    "region": DEFAULT_REGION,
-    "ami": minion_ami,
-    "tags": [
-        {
-            "Key": "Name",
-            "Value": "minion" + minion_ami + str(1)
-        }
-    ],
-    "security_groups": [security_group_name],
-    "key_name": master_key,
-}
-minion_instances = chain_maker.from_json(minion_1_config)
+# master_ami = "ami-e7d108f1"
+# minion_ami = "ami-10d50c06"
+#
+# instances = chain_maker.create(master_ami, 1, security_group_name)
+#
+# master_key = instances[0].key_name
+#
+# minion_1_config = {
+#     "region": DEFAULT_REGION,
+#     "ami": minion_ami,
+#     "tags": [
+#         {
+#             "Key": "Name",
+#             "Value": "minion" + minion_ami + str(1)
+#         }
+#     ],
+#     "security_groups": [security_group_name],
+#     "key_name": master_key,
+# }
+# minion_instances = chain_maker.from_json(minion_1_config)
 
 # security_group_name = "ethermint-security_group"
 # chain_maker.create_security_group(security_group_name, DEFAULT_PORTS)

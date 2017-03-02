@@ -12,7 +12,7 @@ def get_shh_key_file(filename):
     :return: a full path of the key
     """
     if not filename.endswith(".pem"):
-        filename = filename + ".pem"
+        filename += ".pem"
 
     full_filepath = os.path.join(DEFAULT_FILES_LOCATION, filename)
     if not os.path.exists(full_filepath):

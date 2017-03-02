@@ -1,8 +1,7 @@
 import packer
 import pytest
-from mock import MagicMock
-
 from amibuilder import AMIBuilder
+from mock import MagicMock
 
 
 @pytest.fixture()

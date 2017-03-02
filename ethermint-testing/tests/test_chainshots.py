@@ -1,12 +1,11 @@
 import os
 
-import pytest
 import boto3
 import boto3.resources.base
-from mock import MagicMock
-
 import chainmaker
+import pytest
 from chainshotter import Chainshotter
+from mock import MagicMock
 
 
 @pytest.fixture()

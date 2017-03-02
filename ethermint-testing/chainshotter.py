@@ -1,7 +1,5 @@
-import json
 import logging
 import os
-import time
 
 import boto3
 
@@ -91,7 +89,7 @@ class Chainshotter:
             volume = self.ec2.create_volume(SnapshotId=snapshot_info["snapshot"]["id"],
                                             AvailabilityZone=new_instance.placement["AvailabilityZone"])
 
-            time.sleep(10)  # let things settle
+            # time.sleep(10)  # let things settle
 
             new_instance.attach_volume(VolumeId=volume.id, Device=DEFAULT_DEVICE)
             logger.info("Attached volume {} containing snapshot {} to instance {}".format(volume.id,
