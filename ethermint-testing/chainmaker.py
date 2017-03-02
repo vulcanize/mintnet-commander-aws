@@ -17,14 +17,13 @@ class Chainmaker:
     def __init__(self):
         self.ec2 = boto3.resource('ec2', region_name=DEFAULT_REGION)
         self.ec2_client = boto3.client('ec2', region_name=DEFAULT_REGION)
-        self.ami_builder = AMIBuilder()
 
     def create_security_group(self, name, ports):
         """
         Creates a security group in AWS based on ports
         :param name: the name of the newly created group
         :param ports: a list of ports as ints
-        :return: -
+        :return: the SecurityGroup object
         """
         # TODO allow more complex ports definition
         security_group = self.ec2.create_security_group(GroupName=name,
@@ -40,6 +39,8 @@ class Chainmaker:
                 },
             ])
             logger.info("Added port {} to group {}".format(port, name))
+
+        return security_group
 
     @staticmethod
     def add_volume(instance):
@@ -58,7 +59,7 @@ class Chainmaker:
 
         assert volume.availability_zone == instance.placement.get("AvailabilityZone")
 
-        time.sleep(3)  # let things settle, volume does not exist yet :(
+        # time.sleep(3)  # let things settle, volume does not exist yet :(
 
         if volume.state != 'available':
             ec2_client = boto3.client('ec2', region_name=to_canonical_region_name(region))
@@ -155,14 +156,14 @@ class Chainmaker:
         """
         if master_ami is None:
             from packer_configs.salt_ssh_master_config import packer_salt_ssh_master_config
-            master_ami = self.ami_builder.create_ami(packer_salt_ssh_master_config,
-                                                     "test_salt_ssh_master_ami",
-                                                     "packer-file-salt-ssh-master")
+            master_ami_builder = AMIBuilder("packer-file-salt-ssh-master")
+            master_ami = master_ami_builder.create_ami(packer_salt_ssh_master_config,
+                                                       "test_salt_ssh_master_ami")
         if ethermint_node_ami is None:
             from packer_configs.salt_ssh_minion_config import packer_salt_ssh_minion_config
-            ethermint_node_ami = self.ami_builder.create_ami(packer_salt_ssh_minion_config,
-                                                             "test_salt_ssh_minion_ami",
-                                                             "packer-file-salt-ssh-minion")
+            minion_ami_builder = AMIBuilder("packer-file-salt-ssh-minion")
+            ethermint_node_ami = minion_ami_builder.create_ami(packer_salt_ssh_minion_config,
+                                                               "test_salt_ssh_minion_ami")
 
         if security_group_id is None:
             security_group_name = "ethermint-security_group-salt-ssh"

@@ -13,11 +13,16 @@ logger = logging.getLogger(__name__)
 
 
 class AMIBuilder:
-    def __init__(self):
-        pass
+    def __init__(self, packer_file_path=DEFAULT_FILES_LOCATION, packer_file_name="salt_packer"):
+        access_key, secret_key = self._get_credentials()
+        vars = {
+            "aws_access_key": access_key,
+            "aws_secret_key": secret_key
+        }
+        self.packer_file_path = os.path.join(packer_file_path, packer_file_name + '.yml')
+        self.packer = packer.Packer(packer_file_path, vars=vars, exec_path=PACKER_EXECUTABLE)
 
-    def _generate_packer_file(self, packer_base_config, ami_name, packer_file_path=DEFAULT_FILES_LOCATION,
-                             packer_file_name="salt_packer", region=DEFAULT_REGION):
+    def _generate_packer_file(self, packer_base_config, ami_name, region=DEFAULT_REGION):
         """
         Adds a builder to base packer config and saves the file under packer_file_name in packer_file_path
         """
@@ -32,34 +37,25 @@ class AMIBuilder:
         }
         config["builders"].append(builder)
 
-        aws_file = os.path.join(packer_file_path, packer_file_name + '.yml')
-        with open(aws_file, 'w') as f:
+        with open(self.packer_file_path, 'w') as f:
             json.dump(config, f, indent=2)
 
-        logger.info("Packer file {} saved successfully".format(packer_file_name))
-        return aws_file
+        logger.info("Packer file {} saved successfully".format(self.packer_file_path))
 
-    def _build_ami_image(self, packer_file, access_key, secret_key):
+    def _build_ami_image(self):
         """
         Performs packer validate and packer build.
         The result is the AMI of a machine on EC2 which can be used to run more instances
         """
-        vars = {
-            "aws_access_key": access_key,
-            "aws_secret_key": secret_key
-        }
-
-        p = packer.Packer(packer_file, vars=vars, exec_path=PACKER_EXECUTABLE)
-
-        validation_result = p.validate(syntax_only=False)
+        validation_result = self.packer.validate(syntax_only=False)
         if not validation_result.succeeded:
             logger.error("Unable to do packer build, error while validating template: {}".format(validation_result.error))
             return
 
-        build_result = p.build(parallel=False, debug=False, force=False)
+        build_result = self.packer.build(parallel=False, debug=False, force=False)
 
         # retrieve the AMI ID from the command output
-        s = str(filter(lambda line: line != '', build_result.stdout.split('\n'))[-1])
+        s = str(filter(lambda line: line.strip(), build_result.stdout.split('\n'))[-1])
         ami = re.findall('ami-\w{8}', s)[0]
         # ami = s[s.find(":") + 1:].strip()  # TODO a proper regex here
         logger.info("AMI {} created successfully".format(ami))
@@ -75,10 +71,9 @@ class AMIBuilder:
         secret_key = credentials.secret_key
         return access_key, secret_key
 
-    def create_ami(self, packer_builder_config, ami_name, packer_file_name):
+    def create_ami(self, packer_builder_config, ami_name):
         """
         Creates an AMI in AWS in DEFAULT_REGION and returns its ID
         """
-        packer_file = self._generate_packer_file(packer_builder_config, ami_name, packer_file_name=packer_file_name)
-        access_key, secret_key = self._get_credentials()
-        return self._build_ami_image(packer_file, access_key, secret_key)
+        self._generate_packer_file(packer_builder_config, ami_name)
+        return self._build_ami_image()
