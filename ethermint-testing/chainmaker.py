@@ -65,7 +65,7 @@ class Chainmaker:
             volume_waiter = ec2_client.get_waiter('volume_available')
             volume_waiter.wait(VolumeIds=[volume.id])
 
-        volume.attach_to_instance(InstanceId=instance.id, Device=DEFAULT_DEVICE)
+        instance.attach_volume(VolumeId=volume.id, Device=DEFAULT_DEVICE)
         logger.info("Attached volume {} to instance {}".format(volume.id, instance.id))
 
         logger.info("Running ./mount_new_volume.sh on instance {}".format(instance.id))

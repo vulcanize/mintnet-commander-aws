@@ -75,10 +75,10 @@ def test_creating_from_json_failures():
 
 @mock_ec2
 def test_creating_ethermint_network(chainmaker):
+    ec2 = boto3.resource('ec2', region_name=DEFAULT_REGION)
     master_ami, minion_ami = "ami-06875e10", "ami-10d50c06"
 
     master, minions = chainmaker.create_ethermint_network(4, master_ami, minion_ami)
-    ec2 = boto3.resource('ec2', region_name=DEFAULT_REGION)
     instances = list(ec2.instances.all())
     assert len(instances) == len(minions) + 1
 
@@ -110,10 +110,11 @@ def test_ethermint_network_security_group(chainmaker):
 
 @mock_ec2
 def test_ethermint_network_attaches_volumes(chainmaker):
+    ec2 = boto3.resource('ec2', region_name=DEFAULT_REGION)
     master_ami, minion_ami = "ami-06875e10", "ami-10d50c06"
     master, minions = chainmaker.create_ethermint_network(4, master_ami, minion_ami)
 
     for minion in minions:
-        volume = minion.block_device_mappings[0]["Ebs"]["VolumeId"]
+        volume = ec2.Volume(minion.block_device_mappings[0]["Ebs"]["VolumeId"])
         assert volume.attachments[0]["InstanceId"] == minion.id
         assert minion.block_device_mappings[1]["DeviceName"] == DEFAULT_DEVICE
