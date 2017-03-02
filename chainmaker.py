@@ -75,12 +75,12 @@ class Chainmaker:
                                          instance.public_ip_address))
         logger.info("New volume mounted successfully")
 
-    def create(self, ami, number, security_group_name):
+    def create(self, ami, number, security_group_id):
         """
 
         :param ami:
         :param number:
-        :param security_group_name:
+        :param security_group_id:
         :return:
         """
         instances = []
@@ -102,7 +102,7 @@ class Chainmaker:
                         "Value": DEFAULT_INSTANCE_NAME + ami + str(i)
                     }
                 ],
-                "security_groups": [security_group_name],
+                "security_groups": [security_group_id],
                 "key_name": timestamp,
                 "add_volume": True
             }
@@ -141,11 +141,11 @@ class Chainmaker:
         return instance
 
     def create_ethermint_network(self, ethermint_nodes_count, master_ami=None, ethermint_node_ami=None,
-                                 security_group_name=None):
+                                 security_group_id=None):
         """
         Creates an ethermint network consisting of multiple ethermint nodes and a single master node
         For now, all the nodes are in the same region
-        :param security_group_name: The name of the security group to be used; if not given, a default group will be created
+        :param security_group_id: The name of the security group to be used; if not given, a default group will be created
         :param ethermint_node_ami:  The AMI in the default region which will be used to build the ethermint nodes;
         if not provided, default AMI will be deployed
         :param master_ami: The AMI in the default region which will be used to build master node;
@@ -164,11 +164,12 @@ class Chainmaker:
                                                              "test_salt_ssh_minion_ami",
                                                              "packer-file-salt-ssh-minion")
 
-        if security_group_name is None:
+        if security_group_id is None:
             security_group_name = "ethermint-security_group-salt-ssh"
-            self.create_security_group(security_group_name, DEFAULT_PORTS)
+            group = self.create_security_group(security_group_name, DEFAULT_PORTS)
+            security_group_id = group.id
 
-        master_instance = self.create(master_ami, 1, security_group_name)[0]
-        minion_instances = self.create(ethermint_node_ami, ethermint_nodes_count, security_group_name)
+        master_instance = self.create(master_ami, 1, security_group_id)[0]
+        minion_instances = self.create(ethermint_node_ami, ethermint_nodes_count, security_group_id)
         all_instances = [master_instance] + minion_instances
         return all_instances

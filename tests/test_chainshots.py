@@ -85,33 +85,8 @@ def test_starting_and_mounting_ebs_snapshots_on_thaw(chainshotter, mockresource,
     mockossystem.assert_has_calls(len(chainshot_data["instances"]))
 
 
-@pytest.fixture()
-def mockinstnace():
-    def _mockinstance(vol_id):
-        instance = MagicMock()
-        mockvolume = MagicMock()
-        mockvolume.id = MagicMock(return_value=vol_id)
-        instance.volumes.filter = MagicMock(return_value=[mockvolume])
-        return instance
-    return _mockinstance
 
 
-def test_ebs_snapshot(chainshotter, mockresource, mockinstnace):
-    vol_id_1, vol_id_2 = "VolumeID1", "VolumeID2"
-    chainshotter.chainshot("", [mockinstnace(vol_id_1), mockinstnace(vol_id_2)])
-
-    # check if correct aws actions taken by boto3 mock
-    mockresource.create_snapshot.assert_any_call(vol_id_1)
-    mockresource.create_snapshot.assert_any_call(vol_id_2)
-
-# FIXME: ideas about other tests
-
-# def test_chainshot_data(chainshotter):
-#     chainshotter.chainshot("name1", ["instance1", "instance2"])
-#
-#     # check if aws' and our data compiled correctly in resulting chainshot data
-#
-#
 # def test_returning_instances_on_thaw(chainshotter):
 #     instances = chainshotter.thaw(chainshot, ami)
 #
@@ -123,10 +98,6 @@ def test_ebs_snapshot(chainshotter, mockresource, mockinstnace):
 #
 #     # check if salt got the right instructions
 #
-#
-# def test_invalid_chainshots(chainshotter):
-#     pass
-#
-#
+
 # def test_invalid_thaws(chainshotter):
 #     pass
