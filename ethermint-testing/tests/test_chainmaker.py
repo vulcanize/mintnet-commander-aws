@@ -3,6 +3,7 @@ import os
 import boto3
 import pytest
 from botocore.exceptions import ClientError
+from mock import MagicMock
 from moto import mock_ec2
 
 from chainmaker import Chainmaker
@@ -14,6 +15,7 @@ from utils import get_shh_key_file
 def chainmaker(monkeypatch, mockossystem):
     monkeypatch.setattr(os, 'system', mockossystem)
     monkeypatch.setattr(os.path, 'exists', lambda path: True)
+    monkeypatch.setattr('chainmaker.create_keyfile', MagicMock(return_value="keyfile"))
     return Chainmaker()
 
 

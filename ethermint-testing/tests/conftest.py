@@ -10,7 +10,7 @@ from settings import DEFAULT_REGION, DEFAULT_INSTANCE_TYPE
 
 @pytest.fixture()
 def mockossystem():
-    return MagicMock(os.system)
+    return MagicMock(os.system, return_value=0)
 
 
 @pytest.fixture()

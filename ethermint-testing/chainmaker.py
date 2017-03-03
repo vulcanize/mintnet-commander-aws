@@ -7,6 +7,7 @@ import boto3
 from settings import DEFAULT_REGION, DEFAULT_INSTANCE_TYPE, DEFAULT_INSTANCE_NAME, \
     DEFAULT_SECURITY_GROUP_DESCRIPTION, DEFAULT_SNAPSHOT_VOLUME_SIZE, DEFAULT_DEVICE, DEFAULT_PORTS
 from utils import to_canonical_region_name, create_keyfile, run_sh_script
+from waiting_for_ec2 import wait_for_available_volume
 
 logger = logging.getLogger(__name__)
 
@@ -56,10 +57,7 @@ class Chainmaker:
 
         assert volume.availability_zone == instance.placement.get("AvailabilityZone")
 
-        if volume.state != 'available':
-            ec2_client = boto3.client('ec2', region_name=region)
-            volume_waiter = ec2_client.get_waiter('volume_available')
-            volume_waiter.wait(VolumeIds=[volume.id])
+        wait_for_available_volume(volume, to_canonical_region_name(instance.placement["AvailabilityZone"]))
 
         instance.attach_volume(VolumeId=volume.id, Device=DEFAULT_DEVICE)
         logger.info("Attached volume {} to instance {}".format(volume.id, instance.id))

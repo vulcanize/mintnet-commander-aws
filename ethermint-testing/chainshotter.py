@@ -1,11 +1,11 @@
 import logging
 
 import boto3
-import time
 
 from chainmaker import Chainmaker
 from settings import DEFAULT_DEVICE, DEFAULT_REGION
 from utils import run_sh_script, to_canonical_region_name
+from waiting_for_ec2 import wait_for_detached, wait_for_available_volume
 
 logger = logging.getLogger(__name__)
 
@@ -67,12 +67,8 @@ class Chainshotter:
 
             if clean_up:
                 run_sh_script("unmount_new_volume.sh", instance.key_name, instance.public_ip_address)
-                resp = instance.detach_volume(VolumeId=volume.id)
-                state = resp['State']
-                while state != 'detached':
-                    device = filter(lambda dev: dev["DeviceName"] == DEFAULT_DEVICE, instance.block_device_mappings)[0]
-                    state = device["Ebs"]["Status"]
-                    time.sleep(3)
+                instance.detach_volume(VolumeId=volume.id)
+                wait_for_detached(volume, instance)
                 volume.delete()
                 instance.terminate()
 
@@ -99,10 +95,7 @@ class Chainshotter:
             volume = self.ec2.create_volume(SnapshotId=snapshot_info["snapshot"]["id"],
                                             AvailabilityZone=new_instance.placement["AvailabilityZone"])
 
-            if volume.state != 'available':
-                ec2_client = boto3.client('ec2', region_name=to_canonical_region_name(new_instance.placement["AvailabilityZone"]))
-                volume_waiter = ec2_client.get_waiter('volume_available')
-                volume_waiter.wait(VolumeIds=[volume.id])
+            wait_for_available_volume(volume, to_canonical_region_name(new_instance.placement["AvailabilityZone"]))
 
             new_instance.attach_volume(VolumeId=volume.id, Device=DEFAULT_DEVICE)
             logger.info("Attached volume {} containing snapshot {} to instance {}".format(volume.id,

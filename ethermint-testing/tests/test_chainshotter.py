@@ -91,7 +91,7 @@ def test_starting_instances_and_attaching_ebs_snapshots_on_thaw(chainshotter, pr
 
     assert len(instances) == 1
 
-    Chainmaker.create_ec2s_from_json.assert_called_once_with(chainshot["instances"][0]["instance"])
+    Chainmaker.create_ec2s_from_json.assert_called_once_with([chainshot["instances"][0]["instance"]])
 
     assert len(list(instances[0].volumes.filter(Filters=
     [
