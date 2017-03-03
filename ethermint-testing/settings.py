@@ -36,4 +36,7 @@ DEFAULT_SNAPSHOT_VOLUME_SIZE = 10  # Gb
 DEFAULT_DEVICE = '/dev/sdh'
 
 # the directory where .pem files and packer config files are kept and created to
-DEFAULT_FILES_LOCATION = os.path.join(os.getcwd(), "ethermint-testing", "files")
+DEFAULT_FILES_LOCATION = os.path.join(os.getcwd(), "files")
+
+# how many times to try when connecting to an instance using SSH
+MAX_MACHINE_CALL_TRIES = 10

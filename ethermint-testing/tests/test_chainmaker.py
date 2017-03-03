@@ -2,6 +2,7 @@ import os
 
 import boto3
 import pytest
+from botocore.exceptions import ClientError
 from moto import mock_ec2
 
 from chainmaker import Chainmaker
@@ -30,6 +31,16 @@ def test_security_group_creation(chainmaker):
         assert perm["ToPort"] == perm["FromPort"]
         assert perm["ToPort"] in ports
     assert groups["SecurityGroups"][0]["GroupId"] == group.id
+
+
+@mock_ec2
+def test_security_group_creation_failures(chainmaker):
+    security_group_name = "security_group"
+    ports = [i for i in range(8000, 8005)]
+    chainmaker.create_security_group(security_group_name, ports)
+
+    with pytest.raises(ClientError):  # InvalidGroup.Duplicate
+        chainmaker.create_security_group(security_group_name, ports)
 
 
 @mock_ec2

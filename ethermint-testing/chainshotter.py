@@ -1,21 +1,20 @@
 import logging
-import os
 
 import boto3
+import time
 
 from chainmaker import Chainmaker
 from settings import DEFAULT_DEVICE, DEFAULT_REGION
-from utils import get_shh_key_file
+from utils import run_sh_script, to_canonical_region_name
 
 logger = logging.getLogger(__name__)
 
 
 class Chainshotter:
     def __init__(self):
-        self.ec2 = boto3.resource('ec2', region_name=DEFAULT_REGION)
-        self.ec2_client = boto3.client('ec2')
+        self.ec2 = boto3.resource('ec2', region_name=DEFAULT_REGION)  # FIXME different regions
 
-    def chainshot(self, name, instances, clean_up=True):
+    def chainshot(self, name, instances, clean_up=False):
         """
         Allows to snapshot a chain and save a json file with all chainshot info
 
@@ -67,6 +66,13 @@ class Chainshotter:
             results["instances"].append(snapshot_info)
 
             if clean_up:
+                run_sh_script("unmount_new_volume.sh", instance.key_name, instance.public_ip_address)
+                resp = instance.detach_volume(VolumeId=volume.id)
+                state = resp['State']
+                while state != 'detached':
+                    device = filter(lambda dev: dev["DeviceName"] == DEFAULT_DEVICE, instance.block_device_mappings)[0]
+                    state = device["Ebs"]["Status"]
+                    time.sleep(3)
                 volume.delete()
                 instance.terminate()
 
@@ -93,7 +99,10 @@ class Chainshotter:
             volume = self.ec2.create_volume(SnapshotId=snapshot_info["snapshot"]["id"],
                                             AvailabilityZone=new_instance.placement["AvailabilityZone"])
 
-            # time.sleep(10)  # let things settle
+            if volume.state != 'available':
+                ec2_client = boto3.client('ec2', region_name=to_canonical_region_name(new_instance.placement["AvailabilityZone"]))
+                volume_waiter = ec2_client.get_waiter('volume_available')
+                volume_waiter.wait(VolumeIds=[volume.id])
 
             new_instance.attach_volume(VolumeId=volume.id, Device=DEFAULT_DEVICE)
             logger.info("Attached volume {} containing snapshot {} to instance {}".format(volume.id,
@@ -103,11 +112,6 @@ class Chainshotter:
 
             instances.append(new_instance)
 
-            logger.info("Running ./mount_snapshot.sh on instance {}".format(new_instance.id))
-            mount_snapshot_command = lambda ssh_key, ip: \
-                "ssh -o StrictHostKeyChecking=no -i {0} ubuntu@{1} 'bash -s' < mount_snapshot.sh".format(ssh_key, ip)
-            os.system(mount_snapshot_command(get_shh_key_file(snapshot_info["instance"]["key_name"]),
-                                             new_instance.public_ip_address))
-            logger.info("Snapshot mounted successfully")
+            run_sh_script("mount_snapshot.sh", snapshot_info["instance"]["key_name"], new_instance.public_ip_address)
 
         return instances

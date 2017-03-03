@@ -1,8 +1,13 @@
 import os
 
 import boto3
+import logging
 
-from settings import DEFAULT_FILES_LOCATION
+import time
+
+from settings import DEFAULT_FILES_LOCATION, MAX_MACHINE_CALL_TRIES
+
+logger = logging.getLogger(__name__)
 
 
 def get_shh_key_file(filename):
@@ -24,10 +29,11 @@ def to_canonical_region_name(region):
     """
     In AWS, region names can be either us-west-1 or us-west-1b; when using an Availability zone,
     we want the more detailed version, but when playing with general ec2 interface, it needs to be the general name
+    The availability zone consists of a region name with an additional letter in the end
     :param region:
     :return:
     """
-    if region.endswith('a') or region.endswith('b'):
+    if region[-1].isalpha():
         return region[:-1]
     return region
 
@@ -48,3 +54,28 @@ def create_keyfile(name, region):
         f.write(key.key_material)
     os.chmod(full_keyfile, 0o600)
     return full_keyfile
+
+
+def run_sh_script(script_filename, ssh_key_name, ip_address):
+    """
+    Allows to run a shell script on an instance through SSH
+    :param script_filename: the name of the script to be run
+    :param ssh_key_name: the name of the ssh key to be used for the connection
+    :param ip_address: the public IP address of the instance
+    :return:
+    """
+    logger.info("Running ./{} on instance IP: {}".format(script_filename, ip_address))
+    ssh_command = lambda ssh_key_file, ip, script: \
+        "ssh -o StrictHostKeyChecking=no -i {0} ubuntu@{1} 'bash -s' < {2}".format(ssh_key_file, ip, script)
+
+    result = 1
+    tries = 0
+    while result != 0 and tries < MAX_MACHINE_CALL_TRIES:
+        result = os.system(ssh_command(get_shh_key_file(ssh_key_name), ip_address, script_filename))
+        tries += 1
+        if result != 0:
+            time.sleep(5)  # let things settle, SSH refuses connection
+    if tries == MAX_MACHINE_CALL_TRIES:
+        logger.error("Unable to perform actions using SSH")
+    else:
+        logger.info("{} run successfully".format(script_filename))

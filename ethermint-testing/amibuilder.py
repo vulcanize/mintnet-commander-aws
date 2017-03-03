@@ -13,14 +13,18 @@ logger = logging.getLogger(__name__)
 
 
 class AMIBuilder:
+    # FIXME different regions
     def __init__(self, packer_file_path=DEFAULT_FILES_LOCATION, packer_file_name="salt_packer"):
         access_key, secret_key = self._get_credentials()
         vars = {
             "aws_access_key": access_key,
             "aws_secret_key": secret_key
         }
+        if not os.path.exists(packer_file_path):
+            os.makedirs(packer_file_path)
         self.packer_file_path = os.path.join(packer_file_path, packer_file_name + '.yml')
-        self.packer = packer.Packer(packer_file_path, vars=vars, exec_path=PACKER_EXECUTABLE)
+        open(self.packer_file_path, 'a').close()  # creates an empty file
+        self.packer = packer.Packer(self.packer_file_path, vars=vars, exec_path=PACKER_EXECUTABLE)
 
     def _generate_packer_file(self, packer_base_config, ami_name, region=DEFAULT_REGION):
         """
