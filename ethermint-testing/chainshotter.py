@@ -66,8 +66,8 @@ class Chainshotter:
             results["instances"].append(snapshot_info)
 
             if clean_up:
-                run_sh_script("unmount_new_volume.sh", instance.key_name, instance.public_ip_address)
-                instance.detach_volume(VolumeId=volume.id)
+                run_sh_script("shell_scripts/unmount_new_volume.sh", instance.key_name, instance.public_ip_address)
+                instance.detach_volume(VolumeId=volume.id, Force=True)  # FIXME don't force, but then the device is stuck in detaching state
                 wait_for_detached(volume, instance)
                 volume.delete()
                 instance.terminate()
@@ -105,6 +105,6 @@ class Chainshotter:
 
             instances.append(new_instance)
 
-            run_sh_script("mount_snapshot.sh", snapshot_info["instance"]["key_name"], new_instance.public_ip_address)
+            run_sh_script("shell_scripts/mount_snapshot.sh", snapshot_info["instance"]["key_name"], new_instance.public_ip_address)
 
         return instances

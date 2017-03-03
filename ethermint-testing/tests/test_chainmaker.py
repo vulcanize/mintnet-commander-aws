@@ -44,6 +44,8 @@ def test_security_group_creation_failures(chainmaker):
     with pytest.raises(ClientError):  # InvalidGroup.Duplicate
         chainmaker.create_security_group(security_group_name, ports)
 
+        # anything else?
+
 
 @mock_ec2
 def test_adding_volume_to_instance(chainmaker, mock_instance):
@@ -67,22 +69,13 @@ def test_added_volume_mounted(chainmaker, mock_instance, mockossystem):
     instance = mock_instance()
     chainmaker.add_volume(instance)
     mockossystem.assert_called_once_with("ssh -o StrictHostKeyChecking=no -i {0} ubuntu@{1} "
-                                         "'bash -s' < mount_new_volume.sh".format(get_shh_key_file(instance.key_name),
-                                                                                  instance.public_ip_address))
+                                         "'bash -s' < shell_scripts/mount_new_volume.sh".format(
+        get_shh_key_file(instance.key_name),
+        instance.public_ip_address))
 
 
 @mock_ec2
-def test_adding_volume_failures():
-    pass
-
-
-@mock_ec2
-def test_creating_from_json():
-    pass
-
-
-@mock_ec2
-def test_creating_from_json_failures():
+def test_adding_volume_failures(chainmaker):
     pass
 
 

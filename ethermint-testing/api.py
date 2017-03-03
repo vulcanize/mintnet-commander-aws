@@ -83,14 +83,17 @@ def create_amis(env):
     """
     Builds and deploys EC2 AMIs for master and minions, returns master AMI ID and minion AMI ID
     """
-    from packer_configs.salt_ssh_master_config import packer_salt_ssh_master_config
-    from packer_configs.salt_ssh_minion_config import packer_salt_ssh_minion_config
+    from packer_configs.packer_salt_master_config import packer_salt_ssh_master_config
+    from packer_configs.packer_ethermint_config import packer_ethermint_config
     master_ami_builder = AMIBuilder(packer_file_name="packer-file-salt-ssh-master-test")
     minion_ami_builder = AMIBuilder(packer_file_name="packer-file-salt-ssh-minion-test")
-    master_ami = master_ami_builder.create_ami(packer_salt_ssh_master_config, "test_salt_ssh_master_ami")
-    minion_ami = minion_ami_builder.create_ami(packer_salt_ssh_minion_config, "test_salt_ssh_minion_ami")
+
+    master_ami = master_ami_builder.create_ami(packer_salt_ssh_master_config, "test_master_ami")
+    minion_ami = minion_ami_builder.create_ami(packer_ethermint_config, "test_minion_ami")
+
     logger.info("Master AMI: {}".format(master_ami))
     logger.info("Ethermint node AMI: {}".format(minion_ami))
+
     return master_ami, minion_ami
 
 

@@ -36,6 +36,7 @@ def prepare_chainshot():
                                      'id': snapshot.id}}],
             'chainshot_name': 'Test'
         }
+
     return _prepare_chainshot
 
 
@@ -111,8 +112,9 @@ def test_mounting_ebs_on_thaw(chainshotter, prepare_chainshot, mock_instance, mo
     chainshotter.thaw(chainshot)
 
     mockossystem.assert_called_once_with("ssh -o StrictHostKeyChecking=no -i {0} ubuntu@{1} "
-                                         "'bash -s' < mount_snapshot.sh".format(get_shh_key_file(instance.key_name),
-                                                                                instance.public_ip_address))
+                                         "'bash -s' < shell_scripts/mount_snapshot.sh".format(
+        get_shh_key_file(instance.key_name),
+        instance.public_ip_address))
 
 
 @mock_ec2

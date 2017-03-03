@@ -6,6 +6,8 @@ from copy import deepcopy
 
 import boto3
 import packer
+import sys
+from sh import ErrorReturnCode
 
 from settings import DEFAULT_REGION, DEFAULT_INSTANCE_TYPE, DEFAULT_AMIS, PACKER_EXECUTABLE, DEFAULT_FILES_LOCATION
 
@@ -56,7 +58,11 @@ class AMIBuilder:
             logger.error("Unable to do packer build, error while validating template: {}".format(validation_result.error))
             return
 
-        build_result = self.packer.build(parallel=False, debug=False, force=False)
+        try:
+            build_result = self.packer.build(parallel=False, debug=False, force=False)
+        except ErrorReturnCode as err:
+            logger.error(err.stdout)
+            sys.exit(1)
 
         # retrieve the AMI ID from the command output
         s = str(filter(lambda line: line.strip(), build_result.stdout.split('\n'))[-1])

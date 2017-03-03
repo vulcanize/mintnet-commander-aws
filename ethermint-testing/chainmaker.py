@@ -62,7 +62,7 @@ class Chainmaker:
         instance.attach_volume(VolumeId=volume.id, Device=DEFAULT_DEVICE)
         logger.info("Attached volume {} to instance {}".format(volume.id, instance.id))
 
-        run_sh_script("mount_new_volume.sh", instance.key_name, instance.public_ip_address)
+        run_sh_script("shell_scripts/mount_new_volume.sh", instance.key_name, instance.public_ip_address)
 
     @staticmethod
     def create_ec2s_from_json(config):
@@ -148,7 +148,7 @@ class Chainmaker:
                 "region": region,
                 "ami": ethermint_node_ami,
                 "security_groups": [security_group_id],
-                "key_name": master_keyfile,
+                "key_name": minion_keyfile,
                 "tags": [
                     {
                         "Key": "Name",
@@ -160,5 +160,20 @@ class Chainmaker:
 
         minion_instances = Chainmaker.create_ec2s_from_json(minion_instances_config)
         logger.info("All minion {} instances running".format(ethermint_nodes_count))
+
+        # FIXME use salt for this?
+        # We should also generate genesis files and upload them here
+        first_seed = None
+        for i, instance in enumerate(minion_instances):
+            logger.info("Running ethermint on instance ID: {}".format(instance.id))
+            if first_seed is None:
+                run_sh_script("shell_scripts/run_ethermint.sh {}".format(i),
+                              instance.key_name,
+                              instance.public_ip_address)
+                first_seed = str(instance.public_ip_address) + ":46656"
+            else:
+                run_sh_script("shell_scripts/run_ethermint.sh {}".format(i, first_seed),
+                              instance.key_name,
+                              instance.public_ip_address)
 
         return master_instance, minion_instances
