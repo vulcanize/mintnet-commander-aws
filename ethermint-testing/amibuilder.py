@@ -16,11 +16,17 @@ logger = logging.getLogger(__name__)
 
 class AMIBuilder:
     # FIXME different regions
-    def __init__(self, packer_file_path=DEFAULT_FILES_LOCATION, packer_file_name="salt_packer"):
+    def __init__(self, master_pk_name, packer_file_path=DEFAULT_FILES_LOCATION, packer_file_name="salt_packer"):
         access_key, secret_key = self._get_credentials()
+        with open(os.path.join(DEFAULT_FILES_LOCATION, master_pk_name + '.key.pub'), 'r') as f:
+            master_pub_key = f.read()
+        with open(os.path.join(DEFAULT_FILES_LOCATION, master_pk_name + '.key'), 'r') as f:
+            master_priv_key = f.read()
         vars = {
             "aws_access_key": access_key,
-            "aws_secret_key": secret_key
+            "aws_secret_key": secret_key,
+            "master_public_key": master_pub_key,
+            "master_private_key": master_priv_key
         }
         if not os.path.exists(packer_file_path):
             os.makedirs(packer_file_path)

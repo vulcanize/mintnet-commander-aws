@@ -1,7 +1,8 @@
 packer_ethermint_config = {
     "variables": {
         "aws_access_key": "",
-        "aws_secret_key": ""
+        "aws_secret_key": "",
+        "master_public_key": ""
     },
     'builders': [],
     'provisioners': [
@@ -16,6 +17,7 @@ packer_ethermint_config = {
                 "sudo add-apt-repository -y ppa:saltstack/salt",
                 "sudo apt-get -y update",
                 "sudo apt-get install -y salt-ssh",
+                "echo '{{user `master_public_key`}}' >> .ssh/authorized_keys",
 
                 # ethermint stuff
                 "sudo apt-get -y update",

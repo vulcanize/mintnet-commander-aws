@@ -161,19 +161,30 @@ class Chainmaker:
         minion_instances = Chainmaker.create_ec2s_from_json(minion_instances_config)
         logger.info("All minion {} instances running".format(ethermint_nodes_count))
 
-        # FIXME use salt for this?
-        # We should also generate genesis files and upload them here
-        first_seed = None
-        for i, instance in enumerate(minion_instances):
-            logger.info("Running ethermint on instance ID: {}".format(instance.id))
-            if first_seed is None:
-                run_sh_script("shell_scripts/run_ethermint.sh {}".format(i),
-                              instance.key_name,
-                              instance.public_ip_address)
-                first_seed = str(instance.public_ip_address) + ":46656"
-            else:
-                run_sh_script("shell_scripts/run_ethermint.sh {}".format(i, first_seed),
-                              instance.key_name,
-                              instance.public_ip_address)
+        master_roster_file = ""
+        for i, minion in enumerate(minion_instances):
+            master_roster_file += "node" + str(i) + "\n"
+            master_roster_file += "    host: " + str(minion.public_ip_address) + "\n"  # TODO should be private IP here
+            master_roster_file += "    user: ubuntu\n"
+            master_roster_file += "    sudo: True\n"
+
+        run_sh_script("shell_scripts/fill_roster.sh '{}'".format(master_roster_file),
+                      master_instance.key_name,
+                      master_instance.public_ip_address)
+
+        # # FIXME use salt for this?
+        # # We should also generate genesis files and upload them here
+        # first_seed = None
+        # for i, instance in enumerate(minion_instances):
+        #     logger.info("Running ethermint on instance ID: {}".format(instance.id))
+        #     if first_seed is None:
+        #         run_sh_script("shell_scripts/run_ethermint.sh {}".format(i),
+        #                       instance.key_name,
+        #                       instance.public_ip_address)
+        #         first_seed = str(instance.public_ip_address) + ":46656"
+        #     else:
+        #         run_sh_script("shell_scripts/run_ethermint.sh {}".format(i, first_seed),
+        #                       instance.key_name,
+        #                       instance.public_ip_address)
 
         return master_instance, minion_instances

@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 
 import boto3
 import click
@@ -7,7 +8,7 @@ import click
 from amibuilder import AMIBuilder
 from chainmaker import Chainmaker
 from chainshotter import Chainshotter
-from settings import DEFAULT_REGION
+from settings import DEFAULT_REGION, DEFAULT_FILES_LOCATION
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -78,18 +79,28 @@ def thaw(env, chainshot_file):
 
 
 @ethermint_testing.command()
+@click.option('--name', default="master-ssh-key", help='')
 @pass_environment
-def create_amis(env):
+def create_master_keys(env, name):
+    os.system('ssh-keygen -t rsa -C {0} -N "" -f {1}/{0}.key'.format(name, DEFAULT_FILES_LOCATION))
+    keys_loc = os.path.join(DEFAULT_FILES_LOCATION, name + '.key')
+    logger.info("Written files {} and {}".format(keys_loc + ".pub", keys_loc))
+
+
+@ethermint_testing.command()
+@click.option('--master-pkey-name', required=True, help='')
+@pass_environment
+def create_amis(env, master_pkey_name):
     """
     Builds and deploys EC2 AMIs for master and minions, returns master AMI ID and minion AMI ID
     """
     from packer_configs.packer_salt_master_config import packer_salt_ssh_master_config
     from packer_configs.packer_ethermint_config import packer_ethermint_config
-    master_ami_builder = AMIBuilder(packer_file_name="packer-file-salt-ssh-master-test")
-    minion_ami_builder = AMIBuilder(packer_file_name="packer-file-salt-ssh-minion-test")
+    master_ami_builder = AMIBuilder(master_pkey_name, packer_file_name="packer-file-salt-ssh-master-test")
+    minion_ami_builder = AMIBuilder(master_pkey_name, packer_file_name="packer-file-salt-ssh-minion-test")
 
-    master_ami = master_ami_builder.create_ami(packer_salt_ssh_master_config, "test_master_ami")
-    minion_ami = minion_ami_builder.create_ami(packer_ethermint_config, "test_minion_ami")
+    master_ami = master_ami_builder.create_ami(packer_salt_ssh_master_config, "test_master_ami-ssh")
+    minion_ami = minion_ami_builder.create_ami(packer_ethermint_config, "test_minion_ami-ssh")
 
     logger.info("Master AMI: {}".format(master_ami))
     logger.info("Ethermint node AMI: {}".format(minion_ami))

@@ -1,7 +1,8 @@
 packer_salt_ssh_master_config = {
     "variables": {
         "aws_access_key": "",
-        "aws_secret_key": ""
+        "aws_secret_key": "",
+        "master_private_key": ""
     },
     'builders': [],
     'provisioners': [
@@ -16,6 +17,7 @@ packer_salt_ssh_master_config = {
                 "sudo add-apt-repository -y ppa:saltstack/salt",
                 "sudo apt-get update",
                 "sudo apt-get install -y salt-master salt-ssh",
+                "echo '{{user `master_private_key`}}' >> .ssh/master_key",
             ]
         },
     ]
