@@ -1,12 +1,14 @@
 import logging
+import os
 import time
 from datetime import datetime
 
 import boto3
 
 from settings import DEFAULT_REGION, DEFAULT_INSTANCE_TYPE, DEFAULT_INSTANCE_NAME, \
-    DEFAULT_SECURITY_GROUP_DESCRIPTION, DEFAULT_SNAPSHOT_VOLUME_SIZE, DEFAULT_DEVICE, DEFAULT_PORTS
-from utils import to_canonical_region_name, create_keyfile, run_sh_script
+    DEFAULT_SECURITY_GROUP_DESCRIPTION, DEFAULT_SNAPSHOT_VOLUME_SIZE, DEFAULT_DEVICE, DEFAULT_PORTS, \
+    DEFAULT_FILES_LOCATION
+from utils import to_canonical_region_name, create_keyfile, run_sh_script, get_shh_key_file
 from waiting_for_ec2 import wait_for_available_volume
 
 logger = logging.getLogger(__name__)
@@ -163,14 +165,19 @@ class Chainmaker:
 
         master_roster_file = ""
         for i, minion in enumerate(minion_instances):
-            master_roster_file += "node" + str(i) + "\n"
+            master_roster_file += "node" + str(i) + ":\n"
             master_roster_file += "    host: " + str(minion.public_ip_address) + "\n"  # TODO should be private IP here
             master_roster_file += "    user: ubuntu\n"
             master_roster_file += "    sudo: True\n"
 
-        run_sh_script("shell_scripts/fill_roster.sh '{}'".format(master_roster_file),
-                      master_instance.key_name,
-                      master_instance.public_ip_address)
+        roster_path = os.path.join(DEFAULT_FILES_LOCATION, "roster")
+        with open(roster_path, 'w') as f:
+            f.write(master_roster_file)
+
+        os.system("scp -o StrictHostKeyChecking=no -C -i {} {} ubuntu@{}:~/roster".format(
+            get_shh_key_file(master_instance.key_name), roster_path, master_instance.public_ip_address))
+
+        run_sh_script("shell_scripts/copy_roster.sh", master_instance.key_name, master_instance.public_ip_address)
 
         # # FIXME use salt for this?
         # # We should also generate genesis files and upload them here
