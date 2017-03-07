@@ -9,6 +9,13 @@ packer_ethermint_config = {
         {
             "type": "shell",
             "execute_command": "sudo {{.Path}}",
+            "inline": [
+                "echo '{{user `master_public_key`}}' >> .ssh/authorized_keys",
+            ],
+        },
+        {
+            "type": "shell",
+            "execute_command": "sudo {{.Path}}",
             "scripts": [
                 "shell_scripts/setup_salt_ethermint.sh"
             ]

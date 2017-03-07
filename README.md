@@ -15,12 +15,21 @@ and provide your Access key. This saves the key in the default system location i
 
 Go to `ethermint-testing` directory, and then:
 
-1. Run 
-```bash 
-python api.py create_amis
+0. Create a master key which will be used in salt-ssh orchestration
+
+```bash
+python api.py create_master_keys --name <master-key-name>
 ```
 
-which outputs the IDs of AMIs that were created.
+the command saves a key pair to the default location.
+
+1. Run
+ 
+```bash 
+python api.py create_amis --master-pkey-name <master-key-name>
+```
+
+providing the name from above. The command outputs the IDs of AMIs that were created.
 Please note that creating an AMI also creates a snapshot in EC2.
 
 2. Using the newly created AMIs, create an ethermint network:
@@ -51,4 +60,21 @@ Thawing can be done using said file like so:
 python api.py thaw <FILENAME>
 ```
 
-Running the following creates new instances from snapshots.
+Running the following creates new instances from snapshots. This does not recreate the master node. TODO
+
+## Orchestrating
+
+We use saltstack-ssh to orchestrate all ethermint instances. Salt-master is running on master instance and is configured to be able to call other nodes.
+To use salt-ssh, first log into the master node using ssh:
+
+```bash
+ssh -i files/<master-key>.pem ubuntu@<master-public-IP>
+```
+
+and then you can:
+
+```bash
+sudo salt-ssh --priv ~/.ssh/master_key -i "*" test.ping
+```
+
+which will ping all the instances and collect results.

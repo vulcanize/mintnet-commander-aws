@@ -19,6 +19,8 @@ packer_salt_ssh_master_config = {
                 "sudo apt-get install -y salt-master salt-ssh",
                 "echo '{{user `master_private_key`}}' >> .ssh/master_key",
                 "echo '{{user `master_public_key`}}' >> .ssh/master_key.pub",
+                "sudo chmod 600 ~/.ssh/master_key",
+                "sudo chmod 600 ~/.ssh/master_key.pub",
             ]
         },
     ]
