@@ -11,7 +11,6 @@ packer_ethermint_config = {
             "execute_command": "sudo {{.Path}}",
             "inline": [
                 "set -x",  # show stuff being executed
-                "sleep 30",
 
                 # salt stuff
                 "sudo add-apt-repository -y ppa:saltstack/salt",
