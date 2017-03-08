@@ -122,7 +122,7 @@ class Chainmaker:
 
     def _prepare_ethermint(self, minion_instances):
         ethermint_files_location = os.path.join(DEFAULT_FILES_LOCATION, "ethermint")
-        ethermint_genesis = os.path.join(DEFAULT_FILES_LOCATION, "data/", "genesis.json")
+        ethermint_genesis = os.path.join(ethermint_files_location, "data", "genesis.json")
         prepare_validators(len(minion_instances), ethermint_files_location)
         fill_validators(len(minion_instances), ethermint_genesis, ethermint_genesis, ethermint_files_location)
 
