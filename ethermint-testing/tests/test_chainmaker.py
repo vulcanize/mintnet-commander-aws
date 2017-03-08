@@ -61,9 +61,13 @@ def test_ethermint_network_attaches_volumes(chainmaker):
     master, minions = chainmaker.create_ethermint_network(4, master_ami, minion_ami)
 
     for minion in minions:
-        volume = ec2.Volume(minion.block_device_mappings[0]["Ebs"]["VolumeId"])
-        assert volume.attachments[0]["InstanceId"] == minion.id
-        assert minion.block_device_mappings[1]["DeviceName"] == DEFAULT_DEVICE
+        assert len(minion.block_device_mappings) == 2  # the default drive and our additional drive
+        found_our_volume = False
+        for bdm in minion.block_device_mappings:
+            if bdm["DeviceName"] == DEFAULT_DEVICE:
+                found_our_volume = True
+                break
+        assert found_our_volume
 
 
 @mock_ec2

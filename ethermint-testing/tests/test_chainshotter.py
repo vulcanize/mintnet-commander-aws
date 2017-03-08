@@ -94,12 +94,15 @@ def test_starting_instances_and_attaching_ebs_snapshots_on_thaw(chainshotter, pr
 
     Chainmaker.create_ec2s_from_json.assert_called_once_with([chainshot["instances"][0]["instance"]])
 
-    assert len(list(instances[0].volumes.filter(Filters=
+    volumes = list(instances[0].volumes.filter(Filters=
     [
         {'Name': 'snapshot-id', 'Values': [chainshot["instances"][0]["snapshot"]["id"]]}
-    ]))) == 1
-
-    assert instances[0].block_device_mappings[1]["DeviceName"] == DEFAULT_DEVICE
+    ]))
+    assert len(volumes) == 1
+    assert volumes[0].attachments[0]["Device"] == DEFAULT_DEVICE
+    for bdm in instances[0].block_device_mappings:
+        if bdm["Ebs"]["VolumeId"] == volumes[0].id:
+            assert bdm["DeviceName"] == DEFAULT_DEVICE
 
 
 @mock_ec2
