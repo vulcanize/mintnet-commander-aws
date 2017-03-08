@@ -8,7 +8,7 @@ import boto3
 from settings import DEFAULT_REGION, DEFAULT_INSTANCE_TYPE, DEFAULT_INSTANCE_NAME, \
     DEFAULT_SECURITY_GROUP_DESCRIPTION, DEFAULT_SNAPSHOT_VOLUME_SIZE, DEFAULT_DEVICE, DEFAULT_PORTS, \
     DEFAULT_FILES_LOCATION
-from utils import to_canonical_region_name, create_keyfile, run_sh_script, get_shh_key_file
+from utils import get_region_name, create_keyfile, run_sh_script, get_shh_key_file
 from waiting_for_ec2 import wait_for_available_volume
 
 logger = logging.getLogger(__name__)
@@ -18,15 +18,14 @@ class Chainmaker:
     def __init__(self):
         pass
 
-    def _create_security_group(self, name, ports):
+    def _create_security_group(self, name, ports, region=DEFAULT_REGION):
         """
         Creates a security group in AWS based on ports
         :param name: the name of the newly created group
         :param ports: a list of ports as ints
         :return: the SecurityGroup object
         """
-        # TODO allow more complex ports definition
-        ec2 = boto3.resource('ec2', region_name=DEFAULT_REGION)  # FIXME different regions
+        ec2 = boto3.resource('ec2', region_name=region)
         security_group = ec2.create_security_group(GroupName=name,
                                                    Description=DEFAULT_SECURITY_GROUP_DESCRIPTION)
         logger.info("Security group {} created".format(name))
@@ -50,7 +49,7 @@ class Chainmaker:
         :param instance: the instance object
         :return: -
         """
-        region = to_canonical_region_name(instance.placement.get("AvailabilityZone"))
+        region = get_region_name(instance.placement.get("AvailabilityZone"))
         ec2 = boto3.resource('ec2', region_name=region)
 
         volume = ec2.create_volume(Size=DEFAULT_SNAPSHOT_VOLUME_SIZE,
@@ -60,7 +59,7 @@ class Chainmaker:
 
         assert volume.availability_zone == instance.placement.get("AvailabilityZone")
 
-        wait_for_available_volume(volume, to_canonical_region_name(instance.placement["AvailabilityZone"]))
+        wait_for_available_volume(volume, get_region_name(instance.placement["AvailabilityZone"]))
 
         instance.attach_volume(VolumeId=volume.id, Device=DEFAULT_DEVICE)
         logger.info("Attached volume {} to instance {}".format(volume.id, instance.id))
@@ -80,7 +79,7 @@ class Chainmaker:
         instances = []
 
         for i, instance_config in enumerate(config):
-            ec2 = boto3.resource('ec2', region_name=to_canonical_region_name(instance_config["region"]))
+            ec2 = boto3.resource('ec2', region_name=get_region_name(instance_config["region"]))
 
             # create instances returns a list of instances, we want the first element
             instance = ec2.create_instances(ImageId=instance_config["ami"],
@@ -172,14 +171,14 @@ class Chainmaker:
         master_instance = self.create_ec2s_from_json(master_instance_config)[0]
         logger.info("Master instance running")
 
-        # NOTE do we need separate SSH keys for each ethermint instance? For now we have a common key for all
-        minion_keyfile = "salt-instance-minion" + str(int(time.time()))
-        create_keyfile(minion_keyfile, region)
-        logger.info("Minion SSH key in {}".format(minion_keyfile))
-
         minion_instances_config = []
 
         for i in range(ethermint_nodes_count):
+            # Creating a separate key for each minion
+            minion_keyfile = "salt-instance-minion" + str(int(time.time()))
+            create_keyfile(minion_keyfile, region)
+            logger.info("Minion SSH key in {}".format(minion_keyfile))
+
             minion_instances_config.append({
                 "region": region,
                 "ami": ethermint_node_ami,

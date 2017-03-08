@@ -25,7 +25,7 @@ def get_shh_key_file(filename):
     return full_filepath
 
 
-def to_canonical_region_name(region):
+def get_region_name(region):
     """
     In AWS, region names can be either us-west-1 or us-west-1b; when using an Availability zone,
     we want the more detailed version, but when playing with general ec2 interface, it needs to be the general name

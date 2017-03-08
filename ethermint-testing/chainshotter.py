@@ -4,7 +4,7 @@ import boto3
 
 from chainmaker import Chainmaker
 from settings import DEFAULT_DEVICE, DEFAULT_REGION
-from utils import run_sh_script, to_canonical_region_name
+from utils import run_sh_script, get_region_name
 from waiting_for_ec2 import wait_for_detached, wait_for_available_volume
 
 logger = logging.getLogger(__name__)
@@ -96,7 +96,7 @@ class Chainshotter:
             volume = self.ec2.create_volume(SnapshotId=snapshot_info["snapshot"]["id"],
                                             AvailabilityZone=new_instance.placement["AvailabilityZone"])
 
-            wait_for_available_volume(volume, to_canonical_region_name(new_instance.placement["AvailabilityZone"]))
+            wait_for_available_volume(volume, get_region_name(new_instance.placement["AvailabilityZone"]))
 
             new_instance.attach_volume(VolumeId=volume.id, Device=DEFAULT_DEVICE)
             logger.info("Attached volume {} containing snapshot {} to instance {}".format(volume.id,

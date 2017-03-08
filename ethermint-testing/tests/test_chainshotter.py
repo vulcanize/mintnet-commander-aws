@@ -9,7 +9,7 @@ from moto import mock_ec2
 from chainmaker import Chainmaker
 from chainshotter import Chainshotter
 from settings import DEFAULT_REGION, DEFAULT_DEVICE
-from utils import to_canonical_region_name, get_shh_key_file
+from utils import get_region_name, get_shh_key_file
 
 
 @pytest.fixture()
@@ -65,7 +65,7 @@ def test_chainshot_return_data(chainshotter, mock_instance_with_volume, mock_ins
         assert data["snapshot"]["to"] == snapshot.start_time.isoformat()
 
         # left: vpc_id, id
-        assert to_canonical_region_name(data["instance"]["region"]) == DEFAULT_REGION
+        assert get_region_name(data["instance"]["region"]) == DEFAULT_REGION
         assert data["instance"]["ami"] == mock_instance_data["image_id"]
         assert data["instance"]["tags"] == mock_instance_data["tags"]
         assert data["instance"]["key_name"] == mock_instance_data["key_name"]
