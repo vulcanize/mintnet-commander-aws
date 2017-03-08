@@ -56,7 +56,6 @@ def test_ethermint_network_security_group(chainmaker):
 
 @mock_ec2
 def test_ethermint_network_attaches_volumes(chainmaker):
-    ec2 = boto3.resource('ec2', region_name=DEFAULT_REGION)
     master_ami, minion_ami = "ami-06875e10", "ami-10d50c06"
     master, minions = chainmaker.create_ethermint_network(4, master_ami, minion_ami)
 

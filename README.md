@@ -11,6 +11,13 @@ aws configure
 
 and provide your Access key. This saves the key in the default system location in `/home/<user>/.aws/credentials`.
 
+Install tendermint and ethermint:
+
+```bash
+go install -x github.com/tendermint/ethermint/vendor/github.com/tendermint/tendermint/cmd/tendermint
+go install github.com/tendermint/ethermint/cmd/ethermint
+```
+
 ## Example usage
 
 Go to `ethermint-testing` directory, and then:

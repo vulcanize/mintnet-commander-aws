@@ -5,6 +5,7 @@ from datetime import datetime
 
 import boto3
 
+from fill_validators import fill_validators, prepare_validators
 from settings import DEFAULT_REGION, DEFAULT_INSTANCE_TYPE, DEFAULT_INSTANCE_NAME, \
     DEFAULT_SECURITY_GROUP_DESCRIPTION, DEFAULT_SNAPSHOT_VOLUME_SIZE, DEFAULT_DEVICE, DEFAULT_PORTS, \
     DEFAULT_FILES_LOCATION
@@ -118,22 +119,44 @@ class Chainmaker:
 
         run_sh_script("shell_scripts/copy_roster.sh", master_instance.key_name, master_instance.public_ip_address)
 
-    def _prepare_ethermint(self, master_instance, minion_instances):
-        pass
-        # # FIXME use salt for this?
-        # # We should also generate genesis files and upload them here
-        # first_seed = None
-        # for i, instance in enumerate(minion_instances):
-        #     logger.info("Running ethermint on instance ID: {}".format(instance.id))
-        #     if first_seed is None:
-        #         run_sh_script("shell_scripts/run_ethermint.sh {}".format(i),
-        #                       instance.key_name,
-        #                       instance.public_ip_address)
-        #         first_seed = str(instance.public_ip_address) + ":46656"
-        #     else:
-        #         run_sh_script("shell_scripts/run_ethermint.sh {}".format(i, first_seed),
-        #                       instance.key_name,
-        #                       instance.public_ip_address)
+    def _prepare_ethermint(self, minion_instances):
+        ethermint_files_location = os.path.join(DEFAULT_FILES_LOCATION, "ethermint")
+        ethermint_genesis = os.path.join(DEFAULT_FILES_LOCATION, "data/", "genesis.json")
+        prepare_validators(len(minion_instances), ethermint_files_location)
+        fill_validators(len(minion_instances), ethermint_genesis, ethermint_genesis, ethermint_files_location)
+
+        for instance in minion_instances:
+            run_sh_script("shell_scripts/prepare_ethermint_env.sh", instance.key_name, instance.public_ip_address)
+
+            os.system(
+                "scp -o StrictHostKeyChecking=no -C -i {} -r {} ubuntu@{}:/ethermint/data".format(
+                    get_shh_key_file(instance.key_name), os.path.join(ethermint_files_location, "data/"), instance.public_ip_address))
+
+        first_seed = None
+        for i, instance in enumerate(minion_instances):
+            logger.info("Running ethermint on instance ID: {}".format(instance.id))
+
+            # copy the validator file
+            validator_filename = "priv_validator.json.{}".format(i + 1)
+            src_validator_path = os.path.join(ethermint_files_location, validator_filename)
+            os.system("scp -o StrictHostKeyChecking=no -C -i {} {} ubuntu@{}:/ethermint/data/priv_validator.json".format(
+                get_shh_key_file(instance.key_name), src_validator_path, instance.public_ip_address))
+
+            # run ethermint
+            if first_seed is None:
+                run_sh_script("shell_scripts/run_ethermint.sh",
+                              instance.key_name,
+                              instance.public_ip_address)
+                first_seed = str(instance.public_ip_address) + ":46656"
+            else:
+                run_sh_script("shell_scripts/run_ethermint.sh {}".format(first_seed),
+                              instance.key_name,
+                              instance.public_ip_address)
+
+
+
+
+
 
     def create_ethermint_network(self, ethermint_nodes_count, master_ami, ethermint_node_ami):
         """
@@ -173,12 +196,12 @@ class Chainmaker:
 
         minion_instances_config = []
 
-        for i in range(ethermint_nodes_count):
-            # Creating a separate key for each minion
-            minion_keyfile = "salt-instance-minion" + str(int(time.time()))
-            create_keyfile(minion_keyfile, region)
-            logger.info("Minion SSH key in {}".format(minion_keyfile))
+        # Creating a common key for all minions for now
+        minion_keyfile = "salt-instance-minion" + str(int(time.time()))
+        create_keyfile(minion_keyfile, region)
+        logger.info("Minion SSH key in {}".format(minion_keyfile))
 
+        for i in range(ethermint_nodes_count):
             minion_instances_config.append({
                 "region": region,
                 "ami": ethermint_node_ami,
@@ -197,6 +220,6 @@ class Chainmaker:
         logger.info("All minion {} instances running".format(ethermint_nodes_count))
 
         self._prepare_salt(master_instance, minion_instances)
-        self._prepare_ethermint(master_instance, minion_instances)
+        self._prepare_ethermint(minion_instances)
 
         return master_instance, minion_instances
