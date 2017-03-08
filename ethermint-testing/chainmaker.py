@@ -2,6 +2,7 @@ import logging
 import os
 import time
 from datetime import datetime
+from uuid import uuid4
 
 import boto3
 
@@ -174,7 +175,7 @@ class Chainmaker:
 
         region = DEFAULT_REGION
 
-        master_keyfile = "salt-instance-master" + str(int(time.time()))
+        master_keyfile = "salt-instance-master" + str(int(time.time())) + "_" + uuid4().hex
         create_keyfile(master_keyfile, region)
         logger.info("Master SSH key in {}".format(master_keyfile))
 
@@ -197,7 +198,7 @@ class Chainmaker:
         minion_instances_config = []
 
         # Creating a common key for all minions for now
-        minion_keyfile = "salt-instance-minion" + str(int(time.time()))
+        minion_keyfile = "salt-instance-minion" + str(int(time.time())) + "_" + uuid4().hex
         create_keyfile(minion_keyfile, region)
         logger.info("Minion SSH key in {}".format(minion_keyfile))
 

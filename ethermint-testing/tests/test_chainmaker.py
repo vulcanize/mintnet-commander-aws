@@ -2,7 +2,6 @@ import os
 
 import boto3
 import pytest
-from mock import MagicMock
 from moto import mock_ec2
 
 from chainmaker import Chainmaker
@@ -13,8 +12,7 @@ from utils import get_shh_key_file
 @pytest.fixture()
 def chainmaker(monkeypatch, mockossystem, tmp_dir):
     monkeypatch.setattr(os, 'system', mockossystem)
-    monkeypatch.setattr(os.path, 'exists', lambda path: True)
-    monkeypatch.setattr('chainmaker.create_keyfile', MagicMock(return_value="keyfile"))
+    monkeypatch.setattr('utils.DEFAULT_FILES_LOCATION', tmp_dir)
     monkeypatch.setattr('chainmaker.DEFAULT_FILES_LOCATION', tmp_dir)
     return Chainmaker()
 

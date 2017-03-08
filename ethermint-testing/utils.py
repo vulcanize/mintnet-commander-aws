@@ -50,7 +50,9 @@ def create_keyfile(name, region):
     keyfile = name + ".pem"
     key = ec2.create_key_pair(KeyName=name)
     full_keyfile = os.path.join(DEFAULT_FILES_LOCATION, keyfile)
-    with open(full_keyfile, 'w') as f:
+    if not os.path.exists(DEFAULT_FILES_LOCATION):
+        os.makedirs(DEFAULT_FILES_LOCATION)
+    with open(full_keyfile, 'w+') as f:
         f.write(key.key_material)
     os.chmod(full_keyfile, 0o600)
     return full_keyfile
