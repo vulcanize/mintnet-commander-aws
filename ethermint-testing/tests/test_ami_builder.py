@@ -11,7 +11,7 @@ def mockpacker():
 
 
 @pytest.fixture()
-def amibuilder(monkeypatch, mockpacker, tmp_dir):
+def amibuilder(monkeypatch, mockpacker, tmp_dir, mock_aws_credentials):
     monkeypatch.setattr(packer, 'Packer', mockpacker)
     amibuilder = AMIBuilder("master pub key contents", "master priv key contents", tmp_dir)
     sample_output = """

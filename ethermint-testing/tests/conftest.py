@@ -65,5 +65,16 @@ def mock_instance_with_volume(mock_instance):
 
 
 @pytest.fixture()
+def mock_aws_credentials(monkeypatch, tmpdir):
+    credentials_file = tmpdir.mkdir("awsfiles").join("credentials")
+    credentials_file.write("""
+[default]
+aws_access_key_id = AAAAAAAAAAAAAAAAAAAA
+aws_secret_access_key = AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+    """)
+    monkeypatch.setenv("AWS_SHARED_CREDENTIALS_FILE", str(credentials_file))
+
+
+@pytest.fixture()
 def tmp_dir(tmpdir):
     return str(tmpdir.mkdir("files"))
