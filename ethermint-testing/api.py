@@ -91,8 +91,9 @@ def create_master_keys(env, name):
 
 @ethermint_testing.command()
 @click.option('--master-pkey-name', required=True, help='')
+@click.option('--name-root', default="test", help='Root of the names of amis to create')
 @pass_environment
-def create_amis(env, master_pkey_name):
+def create_amis(env, master_pkey_name, name_root):
     """
     Builds and deploys EC2 AMIs for master and minions, returns master AMI ID and minion AMI ID
     """
@@ -109,8 +110,8 @@ def create_amis(env, master_pkey_name):
     minion_ami_builder = AMIBuilder(master_pub_key, master_priv_key,
                                     packer_file_name="packer-file-salt-ssh-minion-test")
 
-    master_ami = master_ami_builder.create_ami(packer_salt_ssh_master_config, "test_master_ami-ssh")
-    minion_ami = minion_ami_builder.create_ami(packer_ethermint_config, "test_minion_ami-ssh")
+    master_ami = master_ami_builder.create_ami(packer_salt_ssh_master_config, name_root + "_master_ami-ssh")
+    minion_ami = minion_ami_builder.create_ami(packer_ethermint_config, name_root + "_minion_ami-ssh")
 
     logger.info("Master AMI: {}".format(master_ami))
     logger.info("Ethermint node AMI: {}".format(minion_ami))
