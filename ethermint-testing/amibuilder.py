@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 
 
 class AMIBuilder:
-    # FIXME different regions
     def __init__(self, master_pub_key, master_priv_key, packer_file_path=DEFAULT_FILES_LOCATION,
                  packer_file_name="salt_packer"):
         access_key, secret_key = self._get_credentials()
@@ -31,7 +30,7 @@ class AMIBuilder:
         open(self.packer_file_path, 'a').close()  # creates an empty file
         self.packer = packer.Packer(self.packer_file_path, vars=packer_vars, exec_path=PACKER_EXECUTABLE)
 
-    def _generate_packer_file(self, packer_base_config, ami_name, region=DEFAULT_REGION):
+    def _generate_packer_file(self, packer_base_config, ami_name, region):
         """
         Adds a builder to base packer config and saves the file under packer_file_name in packer_file_path
         """
@@ -84,9 +83,9 @@ class AMIBuilder:
         secret_key = credentials.secret_key
         return access_key, secret_key
 
-    def create_ami(self, packer_builder_config, ami_name):
+    def create_ami(self, packer_builder_config, ami_name, region=DEFAULT_REGION):
         """
-        Creates an AMI in AWS in DEFAULT_REGION and returns its ID
+        Creates an AMI in AWS in given region and returns its ID
         """
-        self._generate_packer_file(packer_builder_config, ami_name)
+        self._generate_packer_file(packer_builder_config, ami_name, region)
         return self._build_ami_image()
