@@ -16,9 +16,9 @@ logger = logging.getLogger(__name__)
 
 class Chainmaker:
     def __init__(self):
-        self.ec2 = boto3.resource('ec2', region_name=DEFAULT_REGION)  # FIXME different regions
+        pass
 
-    def create_security_group(self, name, ports):
+    def _create_security_group(self, name, ports):
         """
         Creates a security group in AWS based on ports
         :param name: the name of the newly created group
@@ -26,8 +26,9 @@ class Chainmaker:
         :return: the SecurityGroup object
         """
         # TODO allow more complex ports definition
-        security_group = self.ec2.create_security_group(GroupName=name,
-                                                        Description=DEFAULT_SECURITY_GROUP_DESCRIPTION)
+        ec2 = boto3.resource('ec2', region_name=DEFAULT_REGION)  # FIXME different regions
+        security_group = ec2.create_security_group(GroupName=name,
+                                                   Description=DEFAULT_SECURITY_GROUP_DESCRIPTION)
         logger.info("Security group {} created".format(name))
         for port in ports:
             security_group.authorize_ingress(IpPermissions=[
@@ -42,10 +43,10 @@ class Chainmaker:
 
         return security_group
 
-    @staticmethod
-    def add_volume(instance):
+    def _add_volume(self, instance):
         """
         Allows to create a new volume and attach it to an instance and mount it
+        The volume is created in the same zone as the instnace
         :param instance: the instance object
         :return: -
         """
@@ -66,8 +67,7 @@ class Chainmaker:
 
         run_sh_script("shell_scripts/mount_new_volume.sh", instance.key_name, instance.public_ip_address)
 
-    @staticmethod
-    def create_ec2s_from_json(config):
+    def create_ec2s_from_json(self, config):
         """
         Runs Ec2 instances based on config and returns the list of instance objects
         :param config: config consists of a list of instance configs
@@ -94,13 +94,47 @@ class Chainmaker:
             instance.reload()
 
             if "add_volume" in instance_config and instance_config["add_volume"]:
-                Chainmaker.add_volume(instance)
+                self._add_volume(instance)
             if "tags" in instance_config and instance_config["tags"]:
                 instance.create_tags(Tags=instance_config["tags"])
 
             logger.info("Created instance with ID {}".format(instance.id))
 
         return instances
+
+    def _prepare_salt(self, master_instance, minion_instances):
+        master_roster_file = ""
+        for i, minion in enumerate(minion_instances):
+            master_roster_file += "node" + str(i) + ":\n"
+            master_roster_file += "    host: " + str(minion.public_ip_address) + "\n"  # TODO should be private IP here
+            master_roster_file += "    user: ubuntu\n"
+            master_roster_file += "    sudo: True\n"
+
+        roster_path = os.path.join(DEFAULT_FILES_LOCATION, "roster")
+        with open(roster_path, 'w') as f:
+            f.write(master_roster_file)
+
+        os.system("scp -o StrictHostKeyChecking=no -C -i {} {} ubuntu@{}:~/roster".format(
+            get_shh_key_file(master_instance.key_name), roster_path, master_instance.public_ip_address))
+
+        run_sh_script("shell_scripts/copy_roster.sh", master_instance.key_name, master_instance.public_ip_address)
+
+    def _prepare_ethermint(self, master_instance, minion_instances):
+        pass
+        # # FIXME use salt for this?
+        # # We should also generate genesis files and upload them here
+        # first_seed = None
+        # for i, instance in enumerate(minion_instances):
+        #     logger.info("Running ethermint on instance ID: {}".format(instance.id))
+        #     if first_seed is None:
+        #         run_sh_script("shell_scripts/run_ethermint.sh {}".format(i),
+        #                       instance.key_name,
+        #                       instance.public_ip_address)
+        #         first_seed = str(instance.public_ip_address) + ":46656"
+        #     else:
+        #         run_sh_script("shell_scripts/run_ethermint.sh {}".format(i, first_seed),
+        #                       instance.key_name,
+        #                       instance.public_ip_address)
 
     def create_ethermint_network(self, ethermint_nodes_count, master_ami, ethermint_node_ami):
         """
@@ -113,7 +147,7 @@ class Chainmaker:
         """
 
         security_group_name = "ethermint-security_group-salt-ssh-" + str(datetime.now())
-        group = self.create_security_group(security_group_name, DEFAULT_PORTS)
+        group = self._create_security_group(security_group_name, DEFAULT_PORTS)
         security_group_id = group.id
 
         region = DEFAULT_REGION
@@ -135,7 +169,7 @@ class Chainmaker:
             ],
             "add_volume": False
         }]
-        master_instance = Chainmaker.create_ec2s_from_json(master_instance_config)[0]
+        master_instance = self.create_ec2s_from_json(master_instance_config)[0]
         logger.info("Master instance running")
 
         # NOTE do we need separate SSH keys for each ethermint instance? For now we have a common key for all
@@ -160,38 +194,10 @@ class Chainmaker:
                 "add_volume": True
             })
 
-        minion_instances = Chainmaker.create_ec2s_from_json(minion_instances_config)
+        minion_instances = self.create_ec2s_from_json(minion_instances_config)
         logger.info("All minion {} instances running".format(ethermint_nodes_count))
 
-        master_roster_file = ""
-        for i, minion in enumerate(minion_instances):
-            master_roster_file += "node" + str(i) + ":\n"
-            master_roster_file += "    host: " + str(minion.public_ip_address) + "\n"  # TODO should be private IP here
-            master_roster_file += "    user: ubuntu\n"
-            master_roster_file += "    sudo: True\n"
-
-        roster_path = os.path.join(DEFAULT_FILES_LOCATION, "roster")
-        with open(roster_path, 'w') as f:
-            f.write(master_roster_file)
-
-        os.system("scp -o StrictHostKeyChecking=no -C -i {} {} ubuntu@{}:~/roster".format(
-            get_shh_key_file(master_instance.key_name), roster_path, master_instance.public_ip_address))
-
-        run_sh_script("shell_scripts/copy_roster.sh", master_instance.key_name, master_instance.public_ip_address)
-
-        # # FIXME use salt for this?
-        # # We should also generate genesis files and upload them here
-        # first_seed = None
-        # for i, instance in enumerate(minion_instances):
-        #     logger.info("Running ethermint on instance ID: {}".format(instance.id))
-        #     if first_seed is None:
-        #         run_sh_script("shell_scripts/run_ethermint.sh {}".format(i),
-        #                       instance.key_name,
-        #                       instance.public_ip_address)
-        #         first_seed = str(instance.public_ip_address) + ":46656"
-        #     else:
-        #         run_sh_script("shell_scripts/run_ethermint.sh {}".format(i, first_seed),
-        #                       instance.key_name,
-        #                       instance.public_ip_address)
+        self._prepare_salt(master_instance, minion_instances)
+        self._prepare_ethermint(master_instance, minion_instances)
 
         return master_instance, minion_instances

@@ -31,10 +31,10 @@ class Chainshotter:
 
         for instance in instances:
             volumes_collection = instance.volumes.filter(Filters=
-                                                  [
-                                                      {'Name': 'tag-key', 'Values': ["Name"]},
-                                                      {'Name': 'tag-value', 'Values': ['ethermint_volume']}
-                                                  ]
+            [
+                {'Name': 'tag-key', 'Values': ["Name"]},
+                {'Name': 'tag-value', 'Values': ['ethermint_volume']}
+            ]
             )
             volume = list(volumes_collection)[0]
 
@@ -87,9 +87,10 @@ class Chainshotter:
         :return: a list of AWS instances
         """
         instances = []
+        chainmaker = Chainmaker()
 
         for snapshot_info in chainshot["instances"]:
-            new_instance = Chainmaker.create_ec2s_from_json([snapshot_info["instance"]])[0]
+            new_instance = chainmaker.create_ec2s_from_json([snapshot_info["instance"]])[0]
             logger.info("Created new instance {} from AMI {}".format(new_instance.id, snapshot_info["instance"]["ami"]))
 
             volume = self.ec2.create_volume(SnapshotId=snapshot_info["snapshot"]["id"],
@@ -105,6 +106,7 @@ class Chainshotter:
 
             instances.append(new_instance)
 
-            run_sh_script("shell_scripts/mount_snapshot.sh", snapshot_info["instance"]["key_name"], new_instance.public_ip_address)
+            run_sh_script("shell_scripts/mount_snapshot.sh", snapshot_info["instance"]["key_name"],
+                          new_instance.public_ip_address)
 
         return instances

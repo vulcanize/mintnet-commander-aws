@@ -16,13 +16,10 @@ logger = logging.getLogger(__name__)
 
 class AMIBuilder:
     # FIXME different regions
-    def __init__(self, master_pk_name, packer_file_path=DEFAULT_FILES_LOCATION, packer_file_name="salt_packer"):
+    def __init__(self, master_pub_key, master_priv_key, packer_file_path=DEFAULT_FILES_LOCATION,
+                 packer_file_name="salt_packer"):
         access_key, secret_key = self._get_credentials()
-        with open(os.path.join(DEFAULT_FILES_LOCATION, master_pk_name + '.key.pub'), 'r') as f:
-            master_pub_key = f.read()
-        with open(os.path.join(DEFAULT_FILES_LOCATION, master_pk_name + '.key'), 'r') as f:
-            master_priv_key = f.read()
-        vars = {
+        packer_vars = {
             "aws_access_key": access_key,
             "aws_secret_key": secret_key,
             "master_public_key": master_pub_key,
@@ -32,7 +29,7 @@ class AMIBuilder:
             os.makedirs(packer_file_path)
         self.packer_file_path = os.path.join(packer_file_path, packer_file_name + '.yml')
         open(self.packer_file_path, 'a').close()  # creates an empty file
-        self.packer = packer.Packer(self.packer_file_path, vars=vars, exec_path=PACKER_EXECUTABLE)
+        self.packer = packer.Packer(self.packer_file_path, vars=packer_vars, exec_path=PACKER_EXECUTABLE)
 
     def _generate_packer_file(self, packer_base_config, ami_name, region=DEFAULT_REGION):
         """
@@ -61,7 +58,8 @@ class AMIBuilder:
         """
         validation_result = self.packer.validate(syntax_only=False)
         if not validation_result.succeeded:
-            logger.error("Unable to do packer build, error while validating template: {}".format(validation_result.error))
+            logger.error("Unable to do packer build, "
+                         "error while validating template: {}".format(validation_result.error))
             return
 
         try:

@@ -13,7 +13,7 @@ def mockpacker():
 @pytest.fixture()
 def amibuilder(monkeypatch, mockpacker, tmp_dir):
     monkeypatch.setattr(packer, 'Packer', mockpacker)
-    amibuilder = AMIBuilder(tmp_dir)
+    amibuilder = AMIBuilder(tmp_dir, "master pub key contents", "master priv key contents")
     sample_output = """
         amazon-ebs: Setting up python-msgpack (0.3.0-1ubuntu3) ...
         amazon-ebs: Setting up salt-common (2015.5.3+ds-1trusty1) ...

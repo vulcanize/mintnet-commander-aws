@@ -19,6 +19,7 @@ class CommandEnvironment(object):
         self.chainshotter = Chainshotter()
         self.chainmaker = Chainmaker()
 
+
 pass_environment = click.make_pass_decorator(CommandEnvironment, ensure=True)
 
 
@@ -45,7 +46,8 @@ def create(env, count, master_ami, ethermint_node_ami):
 
 @ethermint_testing.command()
 @click.option('--name', default="Ethermint-network-chainshot", help='The name of the chainshot')
-@click.option('--instances', required=True, default=[], type=click.STRING, multiple=True, help='The list of ethermint instance objects')
+@click.option('--instances', required=True, default=[], type=click.STRING,
+              multiple=True, help='The list of ethermint instance objects')
 @click.option('--output-file-path', default="chainshot.json", help='Output chainshot file path (json)')
 @pass_environment
 def chainshot(env, name, instances, output_file_path):
@@ -96,8 +98,16 @@ def create_amis(env, master_pkey_name):
     """
     from packer_configs.packer_salt_master_config import packer_salt_ssh_master_config
     from packer_configs.packer_ethermint_config import packer_ethermint_config
-    master_ami_builder = AMIBuilder(master_pkey_name, packer_file_name="packer-file-salt-ssh-master-test")
-    minion_ami_builder = AMIBuilder(master_pkey_name, packer_file_name="packer-file-salt-ssh-minion-test")
+
+    with open(os.path.join(DEFAULT_FILES_LOCATION, master_pkey_name + '.key.pub'), 'r') as f:
+        master_pub_key = f.read()
+    with open(os.path.join(DEFAULT_FILES_LOCATION, master_pkey_name + '.key'), 'r') as f:
+        master_priv_key = f.read()
+
+    master_ami_builder = AMIBuilder(master_pub_key, master_priv_key,
+                                    packer_file_name="packer-file-salt-ssh-master-test")
+    minion_ami_builder = AMIBuilder(master_pub_key, master_priv_key,
+                                    packer_file_name="packer-file-salt-ssh-minion-test")
 
     master_ami = master_ami_builder.create_ami(packer_salt_ssh_master_config, "test_master_ami-ssh")
     minion_ami = minion_ami_builder.create_ami(packer_ethermint_config, "test_minion_ami-ssh")
