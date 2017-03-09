@@ -10,11 +10,6 @@ echo "running apt-get update ..."
 cat /etc/apt/sources.list
 sudo -E apt-get -y update
 
-# install salt
-sudo add-apt-repository -y ppa:saltstack/salt
-sudo -E apt-get -y update
-sudo apt-get install -y salt-ssh
-
 sudo apt-get install -y build-essential git python
 
 # install golang 1.7
@@ -39,3 +34,12 @@ echo "export PATH=$HOME/go/bin:/usr/local/go/bin:$PATH" >> $HOME/.bashrc
 sudo apt-get install libusb-dev
 
 go get github.com/tendermint/ethermint/cmd/ethermint
+
+# user can pass certain ethermint version by providing a commit hash
+if [ $# -eq 0 ] ; then
+    echo "Using ethermint HEAD"
+else
+    echo "Using ethermint $1"
+    cd $GOPATH/src/github.com/tendermint/ethermint && git checkout $1
+    cd $GOPATH/src/github.com/tendermint/ethermint && go install -x github.com/tendermint/ethermint/cmd/ethermint
+fi

@@ -10,6 +10,8 @@ import sys
 from sh import ErrorReturnCode
 
 from settings import DEFAULT_REGION, DEFAULT_INSTANCE_TYPE, DEFAULT_AMIS, PACKER_EXECUTABLE, DEFAULT_FILES_LOCATION
+from packer_configs.packer_ethermint_config import packer_ethermint_config
+
 
 logger = logging.getLogger(__name__)
 
@@ -28,19 +30,27 @@ class AMIBuilder:
         open(self.packer_file_path, 'a').close()  # creates an empty file
         self.packer = packer.Packer(self.packer_file_path, vars=packer_vars, exec_path=PACKER_EXECUTABLE)
 
-    def _generate_packer_file(self, packer_base_config, ami_name, region):
+    def _generate_packer_file(self, packer_base_config, ami_name, regions):
         """
         Adds a builder to base packer config and saves the file under packer_file_name in packer_file_path
         """
+        assert len(regions) > 0
+
         config = deepcopy(packer_base_config)
         builder = {
             "type": "amazon-ebs",
-            "region": region,
-            "source_ami": DEFAULT_AMIS[region],
+            "region": regions[0],
+            "source_ami": DEFAULT_AMIS[regions[0]],
             "instance_type": DEFAULT_INSTANCE_TYPE,
             "ssh_username": "ubuntu",
             "ami_name": ami_name,
+            "tags": {
+                "Ethermint": ""
+            }
         }
+        if len(regions) > 1:
+            builder["ami_regions"] = regions[1:]
+
         config["builders"].append(builder)
 
         with open(self.packer_file_path, 'w') as f:
@@ -81,9 +91,12 @@ class AMIBuilder:
         secret_key = credentials.secret_key
         return access_key, secret_key
 
-    def create_ami(self, packer_builder_config, ami_name, region=DEFAULT_REGION):
+    def create_ami(self, ethermint_version_hash, ami_name, regions=None):
         """
         Creates an AMI in AWS in given region and returns its ID
         """
-        self._generate_packer_file(packer_builder_config, ami_name, region)
+        if regions is None:
+            regions = [DEFAULT_REGION]
+        packer_builder_config = packer_ethermint_config(ethermint_version_hash)
+        self._generate_packer_file(packer_builder_config, ami_name, regions)
         return self._build_ami_image()

@@ -1,4 +1,4 @@
-packer_ethermint_config = {
+packer_ethermint_config = lambda ethermint_version_hash: {
     "variables": {
         "aws_access_key": "",
         "aws_secret_key": "",
@@ -17,7 +17,7 @@ packer_ethermint_config = {
             "type": "shell",
             "execute_command": "sudo {{.Path}}",
             "scripts": [
-                "shell_scripts/setup_salt_ethermint.sh"
+                "shell_scripts/setup_salt_ethermint.sh{}".format(" " + ethermint_version_hash if ethermint_version_hash else ""),
             ]
         },
     ]

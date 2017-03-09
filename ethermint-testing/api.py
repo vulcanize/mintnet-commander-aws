@@ -2,13 +2,12 @@ import json
 import logging
 import os
 
-import boto3
 import click
 
 from amibuilder import AMIBuilder
 from chainmaker import Chainmaker
 from chainshotter import Chainshotter
-from settings import DEFAULT_REGION, DEFAULT_FILES_LOCATION
+from settings import DEFAULT_FILES_LOCATION
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -72,18 +71,17 @@ def thaw(env, chainshot_file):
 @ethermint_testing.command()
 @click.option('--master-pkey-name', required=True, help='')
 @click.option('--name-root', default="test", help='Root of the names of amis to create')
+@click.option('--ethermint-version', default="", help='The hash of ethermints commit')
 @pass_environment
-def create_amis(env, master_pkey_name, name_root):
+def create_amis(env, master_pkey_name, name_root, ethermint_version):
     """
     Builds and deploys EC2 AMIs for minions, returns AMI ID
     """
-    from packer_configs.packer_ethermint_config import packer_ethermint_config
-
     with open(os.path.join(DEFAULT_FILES_LOCATION, master_pkey_name + '.key.pub'), 'r') as f:
         master_pub_key = f.read()
 
     ami_builder = AMIBuilder(master_pub_key, packer_file_name="packer-file-ethermint-salt-ssh")
-    ami_id = ami_builder.create_ami(packer_ethermint_config, name_root + "_ethermint_ami-ssh")
+    ami_id = ami_builder.create_ami(ethermint_version, name_root + "_ethermint_ami-ssh", regions=["us-west-1", "us-east-1", "us-west-2"])
     logger.info("Ethermint node AMI ID: {}".format(ami_id))
     return ami_id
 
