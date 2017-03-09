@@ -119,4 +119,8 @@ class Chainshotter:
         for instance in instances:
             logger.info("Instance ID: {} unfreezed from chainshot".format(instance.id))
 
+        Chainmaker._run_ethermint(instances)
+        logger.info("Done starting ethermint on instances")
+
+
         return instances
