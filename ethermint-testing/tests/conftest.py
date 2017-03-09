@@ -5,12 +5,20 @@ import boto3
 import pytest
 from mock import MagicMock
 
+from amibuilder import AMIBuilder
 from settings import DEFAULT_REGION, DEFAULT_INSTANCE_TYPE
 
 
 @pytest.fixture()
 def mockossystem():
     return MagicMock(os.system, return_value=0)
+
+
+@pytest.fixture()
+def mockamibuilder():
+    amibuilder = MagicMock(AMIBuilder)
+    amibuilder().create_ami = MagicMock(return_value="AMIID")
+    return amibuilder
 
 
 @pytest.fixture()

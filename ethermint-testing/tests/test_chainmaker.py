@@ -8,43 +8,56 @@ import yaml
 from moto import mock_ec2
 
 from chainmaker import Chainmaker
-from settings import DEFAULT_REGION, DEFAULT_DEVICE
-from utils import get_shh_key_file
+from settings import DEFAULT_DEVICE
+from utils import get_shh_key_file, get_region_name
 
 NETWORK_SIZE = 4
 
 
 @pytest.fixture()
 def fake_ethermint_files(tmp_dir):
-    dest = join(tmp_dir, "ethermint", "priv_validator.json.{}")
-    os.makedirs(dirname(dest))
-    testsdir = os.path.dirname(os.path.realpath(__file__))
-    for i in xrange(NETWORK_SIZE):
-        shutil.copyfile(os.path.join(testsdir, "priv_validator.json.in"), dest.format(i+1))
-    dest_datadir = join(tmp_dir, "ethermint", "data")
-    os.makedirs(dest_datadir)
-    shutil.copy(os.path.join(testsdir, "genesis.json"), dest_datadir)
+    def make_fake(count):
+        dest = join(tmp_dir, "ethermint", "priv_validator.json.{}")
+        os.makedirs(dirname(dest))
+        testsdir = os.path.dirname(os.path.realpath(__file__))
+        for i in xrange(count):
+            shutil.copyfile(os.path.join(testsdir, "priv_validator.json.in"), dest.format(i+1))
+        dest_datadir = join(tmp_dir, "ethermint", "data")
+        os.makedirs(dest_datadir)
+        shutil.copy(os.path.join(testsdir, "genesis.json"), dest_datadir)
+    return make_fake
 
 
 @pytest.fixture()
-def chainmaker(monkeypatch, mockossystem, tmp_dir, fake_ethermint_files):
+def chainmaker(monkeypatch, mockossystem, mockamibuilder, tmp_dir):
     monkeypatch.setattr(os, 'system', mockossystem)
     monkeypatch.setattr('utils.DEFAULT_FILES_LOCATION', tmp_dir)
     monkeypatch.setattr('chainmaker.DEFAULT_FILES_LOCATION', tmp_dir)
+    monkeypatch.setattr('chainmaker.AMIBuilder', mockamibuilder)
     return Chainmaker()
 
 
 @mock_ec2
-def test_creating_ethermint_network(chainmaker):
-    ec2 = boto3.resource('ec2', region_name=DEFAULT_REGION)
-    ami = "ami-10d50c06"
+def test_creating_ethermint_network(chainmaker, fake_ethermint_files):
+    regions = ["ap-northeast-1", "ap-northeast-1", "ap-northeast-1", "eu-central-1", "us-west-1", "us-west-1"]
+    fake_ethermint_files(len(regions))
+    ethermint_version = "HEAD"
 
-    nodes = chainmaker.create_ethermint_network(NETWORK_SIZE, ami)
-    assert len(list(ec2.instances.all())) == len(nodes)
+    nodes = chainmaker.create_ethermint_network(regions, ethermint_version, "master_pub_key")
 
-    # check if nodes have the correct AMI
+    distinct_regions = set(regions)
+    instances_in_regions = {}
+    for r in regions:
+        instances_in_regions[r] = instances_in_regions.get(r, 0) + 1
+
+    for region in distinct_regions:
+        ec2 = boto3.resource('ec2', region_name=region)
+        assert len(list(ec2.instances.all())) == instances_in_regions[region]
+
+    # check if nodes have the correct AMI tags
     for node in nodes:
-        assert node.image_id == ami
+        ec2 = boto3.resource('ec2', region_name=get_region_name(node.placement["AvailabilityZone"]))
+        assert {'Key': 'Ethermint', 'Value': ethermint_version} in ec2.Instace(node.image_id).tags
 
 
 @mock_ec2

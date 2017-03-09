@@ -41,7 +41,7 @@ def create(env, update_roster, regions, ethermint_version, master_pkey_name, nam
     """
     with open(os.path.join(DEFAULT_FILES_LOCATION, master_pkey_name + '.key.pub'), 'r') as f:
         master_pub_key = f.read()
-    return env.chainmaker.create_ethermint_network(regions, ethermint_version, update_roster, master_pub_key, name_root)
+    return env.chainmaker.create_ethermint_network(regions, ethermint_version, master_pub_key, update_roster, name_root)
 
 
 @ethermint_testing.command()

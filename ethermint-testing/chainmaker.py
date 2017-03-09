@@ -167,7 +167,8 @@ class Chainmaker:
                               instance.key_name,
                               instance.public_ip_address)
 
-    def create_ethermint_network(self, regions, ethermint_version, update_salt_roster, master_pub_key, name_root):
+    def create_ethermint_network(self, regions, ethermint_version, master_pub_key, update_salt_roster=False,
+                                 name_root="test"):
         """
         Creates an ethermint network consisting of multiple ethermint nodes
         :param regions: a list of regions where instances will be run; we run 1 instance per region
@@ -182,7 +183,7 @@ class Chainmaker:
         for region in distinct_regions:
             ec2 = boto3.resource('ec2', region_name=region)
             images = list(ec2.images.filter(Owners=['self'], Filters=[{'Name': 'tag:Ethermint',
-                                                                  'Values': [ethermint_version]}]))
+                                                                       'Values': [ethermint_version]}]))
             if len(images) > 0:
                 logger.info("AMI for {} in region {} already exists".format(ethermint_version, region))
                 amis[region] = images[0].id

@@ -18,7 +18,7 @@ def fill_validators(num_validators, genesis_file, new_genesis_file, output_dir):
     validators = []
 
     for i in range(1, num_validators+1):
-        with open(os.path.join(output_dir, 'priv_validator.json.%s' % i)) as f:
+        with open(os.path.join(output_dir, 'priv_validator.json.%s' % i), "r") as f:
             validator = json.loads(f.read())
             pub_key = validator['pub_key']
 
