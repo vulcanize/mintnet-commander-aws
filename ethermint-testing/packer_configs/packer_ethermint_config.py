@@ -17,8 +17,8 @@ packer_ethermint_config = lambda ethermint_version_hash: {
             "type": "shell",
             "execute_command": "sudo {{.Path}}",
             "environment_vars": ["ETHERMINT={}".format(ethermint_version_hash)],
-            "inline": [
-                "./shell_scripts/setup_salt_ethermint.sh",
+            "scripts": [
+                "shell_scripts/setup_salt_ethermint.sh",
             ]
         },
     ]
