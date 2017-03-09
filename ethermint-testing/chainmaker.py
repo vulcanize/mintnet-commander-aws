@@ -105,9 +105,18 @@ class Chainmaker:
         "add_volume", "tags" (additional tags)
         :return: a list of instance objects
         """
-        pool = multiprocessing.Pool(len(config))
+        # comment this to run in paralell (see below)
+        instances_ids = []
+        for conf in config:
+            instances_ids.append(_create_instance(conf))
 
-        instances_ids = pool.map_async(_create_instance, config).get(600)
+        # uncomment the following to run in parallel, but this fails tests (because of moto)
+        # tried multiprocessing.ThreadPool which is ok with moto but has random errors
+        # so, the default for tests is the sequential version above
+        # pool = multiprocessing.Pool(len(config))
+        # instances_ids = pool.map_async(_create_instance, config).get(600)
+        # pool.close()
+        # pool.join()
 
         ec2s = [boto3.resource('ec2', region_name=get_region_name(instance_config["region"])) for
                 instance_config in config]

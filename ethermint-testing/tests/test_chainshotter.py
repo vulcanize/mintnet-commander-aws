@@ -1,6 +1,7 @@
 import os
 
 import boto3
+import mock
 import pytest
 from botocore.exceptions import ClientError
 from mock import MagicMock
@@ -106,16 +107,25 @@ def test_starting_instances_and_attaching_ebs_snapshots_on_thaw(chainshotter, pr
 
 
 @mock_ec2
-def test_mounting_ebs_on_thaw(chainshotter, prepare_chainshot, mock_instance, mockossystem, monkeypatch):
+def test_mounting_ebs_and_running_on_thaw(chainshotter, prepare_chainshot, mock_instance, mockossystem, monkeypatch):
     # mount has to be done manually since the boto3 interface does not allow to do this
     # For now testing if the ssh command is correct
     chainshot = prepare_chainshot()
     instance = mock_instance()
     monkeypatch.setattr(Chainmaker, 'create_ec2s_from_json', MagicMock(return_value=[instance]))
+    mockossystem.reset_mock()
     chainshotter.thaw(chainshot)
 
-    mockossystem.assert_called_once_with("ssh -o StrictHostKeyChecking=no -i {0} ubuntu@{1} "
-                                         "'bash -s' < shell_scripts/mount_snapshot.sh".format(
+    args_list = mockossystem.call_args_list
+    assert len(args_list) == 2
+
+    assert args_list[0] == mock.call("ssh -o StrictHostKeyChecking=no -i {0} ubuntu@{1} "
+                                     "'bash -s' < shell_scripts/mount_snapshot.sh".format(
+        get_shh_key_file(instance.key_name),
+        instance.public_ip_address))
+
+    assert args_list[1] == mock.call("ssh -o StrictHostKeyChecking=no -i {0} ubuntu@{1} "
+                                     "'bash -s' < shell_scripts/run_ethermint.sh".format(
         get_shh_key_file(instance.key_name),
         instance.public_ip_address))
 
