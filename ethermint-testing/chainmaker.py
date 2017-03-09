@@ -6,8 +6,9 @@ from uuid import uuid4
 
 import boto3
 
+from amibuilder import AMIBuilder
 from fill_validators import fill_validators, prepare_validators
-from settings import DEFAULT_REGION, DEFAULT_INSTANCE_TYPE, DEFAULT_INSTANCE_NAME, \
+from settings import DEFAULT_INSTANCE_TYPE, DEFAULT_INSTANCE_NAME, \
     DEFAULT_SECURITY_GROUP_DESCRIPTION, DEFAULT_SNAPSHOT_VOLUME_SIZE, DEFAULT_DEVICE, DEFAULT_PORTS, \
     DEFAULT_FILES_LOCATION
 from utils import get_region_name, create_keyfile, run_sh_script, get_shh_key_file
@@ -20,11 +21,12 @@ class Chainmaker:
     def __init__(self):
         pass
 
-    def _create_security_group(self, name, ports, region=DEFAULT_REGION):
+    def _create_security_group(self, name, ports, region):
         """
         Creates a security group in AWS based on ports
         :param name: the name of the newly created group
         :param ports: a list of ports as ints
+        :param region: the AWS region
         :return: the SecurityGroup object
         """
         ec2 = boto3.resource('ec2', region_name=region)
@@ -153,52 +155,69 @@ class Chainmaker:
                               instance.key_name,
                               instance.public_ip_address)
 
-    def create_ethermint_network(self, ethermint_nodes_count, ethermint_node_ami, update_salt_roster=False):
+    def create_ethermint_network(self, regions, ethermint_version, update_salt_roster, master_pub_key, name_root):
         """
         Creates an ethermint network consisting of multiple ethermint nodes
-        For now, all the nodes are in the same region
+        :param regions: a list of regions where instances will be run; we run 1 instance per region
         :param update_salt_roster: indicates if the system /etc/salt/roster file should be updated
-        :param ethermint_node_ami:  The AMI in the default region which will be used to build the ethermint nodes;
-        :param ethermint_nodes_count: The number of ethermint nodes to be run
         :return: a list of all other instances created
         """
+        distinct_regions = set(regions)
 
-        security_group_name = "ethermint-security_group-salt-ssh-" + str(datetime.now())
-        group = self._create_security_group(security_group_name, DEFAULT_PORTS)
-        security_group_id = group.id
+        # Find AMI ID for each region and create AMIs if missing
+        amis = {}
+        ami_builder = AMIBuilder(master_pub_key, packer_file_name="packer-file-ethermint-salt-ssh")
+        for region in distinct_regions:
+            ec2 = boto3.resource('ec2', region_name=region)
+            images = list(ec2.images.filter(Owners=['self'], Filters=[{'Name': 'tag:Ethermint',
+                                                                  'Values': [ethermint_version]}]))
+            if len(images) > 0:
+                logger.info("AMI for {} in region {} already exists".format(ethermint_version, region))
+                amis[region] = images[0].id
+            else:
+                logger.info("Creating AMI for {} in region {}".format(ethermint_version, region))
+                ami_id = ami_builder.create_ami(ethermint_version, name_root + "_ethermint_ami-ssh",
+                                                regions=[region])
+                amis[region] = ami_id
 
-        region = DEFAULT_REGION
+        # Create security groups in all regions
+        security_groups = {}
+        for region in distinct_regions:
+            security_group_name = "ethermint-security_group-salt-ssh-" + str(datetime.now())
+            group = self._create_security_group(security_group_name, DEFAULT_PORTS, region)
+            security_groups[region] = group.id
 
         instances_config = []
 
-        # Creating a common key for all minions for now
+        # Create a common key in all regions
         ethermint_network_keyfile = "salt-instance-" + str(int(time.time())) + "_" + uuid4().hex
-        create_keyfile(ethermint_network_keyfile, region)
+        for region in distinct_regions:
+            create_keyfile(ethermint_network_keyfile, region)
         logger.info("Nodes SSH key in {}".format(ethermint_network_keyfile))
 
-        for i in range(ethermint_nodes_count):
+        for i, region in enumerate(regions):
             instances_config.append({
                 "region": region,
-                "ami": ethermint_node_ami,
-                "security_groups": [security_group_id],
+                "ami": amis[region],
+                "security_groups": [security_groups[region]],
                 "key_name": ethermint_network_keyfile,
                 "tags": [
                     {
                         "Key": "Name",
-                        "Value": DEFAULT_INSTANCE_NAME + ethermint_node_ami + str(i)
+                        "Value": DEFAULT_INSTANCE_NAME + amis[region] + str(i)
                     }
                 ],
                 "add_volume": True
             })
 
         nodes = self.create_ec2s_from_json(instances_config)
-        logger.info("All minion {} instances running".format(ethermint_nodes_count))
+        logger.info("All minion {} instances running".format(len(regions)))
 
         if update_salt_roster:
             self._update_salt(nodes)
         self._prepare_ethermint(nodes)
 
         for node in nodes:
-            logger.info("Ethermint instance ID: {}".format(node.id))
+            logger.info("Ethermint instance ID: {} in {}".format(node.id, node.placement["AvailabilityZone"]))
 
         return nodes

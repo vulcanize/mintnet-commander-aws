@@ -34,8 +34,7 @@ def amibuilder(monkeypatch, mockpacker, tmp_dir, mock_aws_credentials):
 
 
 def test_ami_creation(amibuilder):
-    base_config = {"builders": []}
     ami_name = "test_ami"
-    amibuilder.create_ami(base_config, ami_name)
+    amibuilder.create_ami("HEAD", ami_name)
     amibuilder.packer.validate.assert_called_once()
     amibuilder.packer.build.assert_called_once()

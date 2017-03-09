@@ -2,7 +2,6 @@ import json
 import logging
 import os
 import re
-from copy import deepcopy
 
 import boto3
 import packer
@@ -30,13 +29,16 @@ class AMIBuilder:
         open(self.packer_file_path, 'a').close()  # creates an empty file
         self.packer = packer.Packer(self.packer_file_path, vars=packer_vars, exec_path=PACKER_EXECUTABLE)
 
-    def _generate_packer_file(self, packer_base_config, ami_name, regions):
+    def _generate_packer_file(self, ethermint_version_hash, ami_name, regions):
         """
         Adds a builder to base packer config and saves the file under packer_file_name in packer_file_path
         """
         assert len(regions) > 0
 
-        config = deepcopy(packer_base_config)
+        config = packer_ethermint_config(ethermint_version_hash)
+        if not ethermint_version_hash:
+            ethermint_version_hash = "HEAD"
+
         builder = {
             "type": "amazon-ebs",
             "region": regions[0],
@@ -45,7 +47,7 @@ class AMIBuilder:
             "ssh_username": "ubuntu",
             "ami_name": ami_name,
             "tags": {
-                "Ethermint": ""
+                "Ethermint": ethermint_version_hash
             }
         }
         if len(regions) > 1:
@@ -97,6 +99,6 @@ class AMIBuilder:
         """
         if regions is None:
             regions = [DEFAULT_REGION]
-        packer_builder_config = packer_ethermint_config(ethermint_version_hash)
-        self._generate_packer_file(packer_builder_config, ami_name, regions)
+
+        self._generate_packer_file(ethermint_version_hash, ami_name, regions)
         return self._build_ami_image()

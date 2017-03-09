@@ -28,15 +28,20 @@ def ethermint_testing():
 
 
 @ethermint_testing.command()
-@click.option('--count', default=1, help='Number of ethermints to be run')
-@click.option('--ami', required=True, help='The AMI to be used for ethermint nodes')
 @click.option('--update-roster/--no-update-roster', default=False, help='Update /etc/salt/roster locally?')
+@click.option('--regions', required=True, default=[], type=click.STRING, multiple=True,
+              help='A list of regions; one instance is created per region')
+@click.option('--ethermint-version', default="HEAD", help='The hash of ethermints commit')
+@click.option('--master-pkey-name', required=True, help='')
+@click.option('--name-root', default="test", help='Root of the names of amis to create')
 @pass_environment
-def create(env, count, ami, update_roster):
+def create(env, update_roster, regions, ethermint_version, master_pkey_name, name_root):
     """
     Creates an ethermint network consisting of ethermint nodes
     """
-    return env.chainmaker.create_ethermint_network(count, ami, update_roster)
+    with open(os.path.join(DEFAULT_FILES_LOCATION, master_pkey_name + '.key.pub'), 'r') as f:
+        master_pub_key = f.read()
+    return env.chainmaker.create_ethermint_network(regions, ethermint_version, update_roster, master_pub_key, name_root)
 
 
 @ethermint_testing.command()
@@ -66,24 +71,6 @@ def thaw(env, chainshot_file):
         chainshot = json.load(json_data)
         instances = env.chainshotter.thaw(chainshot)
         return instances
-
-
-@ethermint_testing.command()
-@click.option('--master-pkey-name', required=True, help='')
-@click.option('--name-root', default="test", help='Root of the names of amis to create')
-@click.option('--ethermint-version', default="", help='The hash of ethermints commit')
-@pass_environment
-def create_amis(env, master_pkey_name, name_root, ethermint_version):
-    """
-    Builds and deploys EC2 AMIs for minions, returns AMI ID
-    """
-    with open(os.path.join(DEFAULT_FILES_LOCATION, master_pkey_name + '.key.pub'), 'r') as f:
-        master_pub_key = f.read()
-
-    ami_builder = AMIBuilder(master_pub_key, packer_file_name="packer-file-ethermint-salt-ssh")
-    ami_id = ami_builder.create_ami(ethermint_version, name_root + "_ethermint_ami-ssh", regions=["us-west-1", "us-east-1", "us-west-2"])
-    logger.info("Ethermint node AMI ID: {}".format(ami_id))
-    return ami_id
 
 
 cli = click.CommandCollection(sources=[ethermint_testing])
