@@ -37,10 +37,7 @@ def create(env, count, ami, update_roster):
     """
     Creates an ethermint network consisting of ethermint nodes
     """
-    nodes = env.chainmaker.create_ethermint_network(count, ami, update_roster)
-    for node in nodes:
-        logger.info("Ethermint instance ID: {}".format(node.id))
-    return nodes
+    return env.chainmaker.create_ethermint_network(count, ami, update_roster)
 
 
 @ethermint_testing.command()
@@ -52,13 +49,8 @@ def create(env, count, ami, update_roster):
 def chainshot(env, name, instances, output_file_path):
     """
     Allows to create a chainshot of a network consisting of multiple ec2 instances
-    Instances should contain the master node
     """
-    ec2 = boto3.resource('ec2', region_name=DEFAULT_REGION)  # FIXME different regions
-    instance_objects = []
-    for instance in instances:
-        instance_objects.append(ec2.Instance(instance))
-    chainshot_data = env.chainshotter.chainshot(name, instance_objects)
+    chainshot_data = env.chainshotter.chainshot(name, instances)
     with open(output_file_path, 'w') as f:
         json.dump(chainshot_data, f, indent=2)
     logger.info("The chainshot: {}".format(chainshot_data))
@@ -74,8 +66,6 @@ def thaw(env, chainshot_file):
     with open(chainshot_file) as json_data:
         chainshot = json.load(json_data)
         instances = env.chainshotter.thaw(chainshot)
-        for instance in instances:
-            logger.info("Instance ID: {} unfreezed from chainshot".format(instance.id))
         return instances
 
 

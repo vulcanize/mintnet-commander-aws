@@ -14,15 +14,20 @@ class Chainshotter:
     def __init__(self):
         self.ec2 = boto3.resource('ec2', region_name=DEFAULT_REGION)  # FIXME different regions
 
-    def chainshot(self, name, instances, clean_up=False):
+    def chainshot(self, name, instances_ids, clean_up=False):
         """
         Allows to snapshot a chain and save a json file with all chainshot info
 
         :param clean_up: indicates if instances should be terminated after snapshot is taken
         :param name: the name (ID) of the snapshot
-        :param instances: the list of instance objects to be snapshotted
+        :param instances: the list of instance IDs to be snapshotted
         :return: a dictionary containing the snapshot info
         """
+
+        ec2 = boto3.resource('ec2', region_name=DEFAULT_REGION)  # FIXME different regions
+        instances = []
+        for instance_id in instances_ids:
+            instances.append(ec2.Instance(instance_id))
 
         results = {
             "chainshot_name": name,
@@ -108,5 +113,8 @@ class Chainshotter:
 
             run_sh_script("shell_scripts/mount_snapshot.sh", snapshot_info["instance"]["key_name"],
                           new_instance.public_ip_address)
+
+        for instance in instances:
+            logger.info("Instance ID: {} unfreezed from chainshot".format(instance.id))
 
         return instances

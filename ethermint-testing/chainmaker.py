@@ -198,4 +198,7 @@ class Chainmaker:
             self._update_salt(nodes)
         self._prepare_ethermint(nodes)
 
+        for node in nodes:
+            logger.info("Ethermint instance ID: {}".format(node.id))
+
         return nodes
