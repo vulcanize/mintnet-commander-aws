@@ -42,7 +42,7 @@ def prepare_chainshot():
 
 @mock_ec2
 def test_chainshot_creates_snapshots(chainshotter, mock_instance_with_volume):
-    instances = [mock_instance_with_volume()]
+    instances = [mock_instance_with_volume().id]
     chainshotter.chainshot("Test", instances)
     ec2_client = boto3.client('ec2', region_name=DEFAULT_REGION)
     all_snaps = ec2_client.describe_snapshots(Filters=[{'Name': 'description', 'Values': ['ethermint-backup']}])
@@ -51,7 +51,7 @@ def test_chainshot_creates_snapshots(chainshotter, mock_instance_with_volume):
 
 @mock_ec2
 def test_chainshot_return_data(chainshotter, mock_instance_with_volume, mock_instance_data):
-    chainshot_data = chainshotter.chainshot("Test", [mock_instance_with_volume()])
+    chainshot_data = chainshotter.chainshot("Test", [mock_instance_with_volume().id])
     ec2 = boto3.resource('ec2', region_name=DEFAULT_REGION)
     ec2_client = boto3.client('ec2', region_name=DEFAULT_REGION)
     all_snaps = ec2_client.describe_snapshots(Filters=[{'Name': 'description', 'Values': ['ethermint-backup']}])
@@ -75,7 +75,7 @@ def test_chainshot_return_data(chainshotter, mock_instance_with_volume, mock_ins
 @mock_ec2
 def test_invalid_chainshots(chainshotter, mock_instance):
     # volumes filter returns empty (no ethermint_volume)
-    instance = mock_instance()
+    instance = mock_instance().id
     with pytest.raises(IndexError):
         chainshotter.chainshot("Test", [instance])
 

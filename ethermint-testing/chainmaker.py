@@ -103,11 +103,11 @@ class Chainmaker:
 
         return instances
 
-    def _prepare_salt(self, master_instance, minion_instances):
+    def _update_salt(self, instances):
         master_roster_file = ""
-        for i, minion in enumerate(minion_instances):
+        for i, instance in enumerate(instances):
             master_roster_file += "node" + str(i) + ":\n"
-            master_roster_file += "    host: " + str(minion.public_ip_address) + "\n"  # TODO should be private IP here
+            master_roster_file += "    host: " + str(instance.public_ip_address) + "\n"  # TODO private IP here
             master_roster_file += "    user: ubuntu\n"
             master_roster_file += "    sudo: True\n"
 
@@ -115,10 +115,7 @@ class Chainmaker:
         with open(roster_path, 'w') as f:
             f.write(master_roster_file)
 
-        os.system("scp -o StrictHostKeyChecking=no -C -i {} {} ubuntu@{}:~/roster".format(
-            get_shh_key_file(master_instance.key_name), roster_path, master_instance.public_ip_address))
-
-        run_sh_script("shell_scripts/copy_roster.sh", master_instance.key_name, master_instance.public_ip_address)
+        os.system("shell_scripts/copy_roster.sh {}".format(roster_path))
 
     def _prepare_ethermint(self, minion_instances):
         ethermint_files_location = os.path.join(DEFAULT_FILES_LOCATION, "ethermint")
@@ -141,8 +138,9 @@ class Chainmaker:
             # copy the validator file
             validator_filename = "priv_validator.json.{}".format(i + 1)
             src_validator_path = os.path.join(ethermint_files_location, validator_filename)
-            os.system("scp -o StrictHostKeyChecking=no -C -i {} {} ubuntu@{}:/ethermint/data/priv_validator.json".format(
-                get_shh_key_file(instance.key_name), src_validator_path, instance.public_ip_address))
+            os.system(
+                "scp -o StrictHostKeyChecking=no -C -i {} {} ubuntu@{}:/ethermint/data/priv_validator.json".format(
+                    get_shh_key_file(instance.key_name), src_validator_path, instance.public_ip_address))
 
             # run ethermint
             if first_seed is None:
@@ -155,15 +153,14 @@ class Chainmaker:
                               instance.key_name,
                               instance.public_ip_address)
 
-
-    def create_ethermint_network(self, ethermint_nodes_count, master_ami, ethermint_node_ami):
+    def create_ethermint_network(self, ethermint_nodes_count, ethermint_node_ami, update_salt_roster=False):
         """
-        Creates an ethermint network consisting of multiple ethermint nodes and a single master node
+        Creates an ethermint network consisting of multiple ethermint nodes
         For now, all the nodes are in the same region
+        :param update_salt_roster: indicates if the system /etc/salt/roster file should be updated
         :param ethermint_node_ami:  The AMI in the default region which will be used to build the ethermint nodes;
-        :param master_ami: The AMI in the default region which will be used to build master node;
-        :param ethermint_nodes_count: The number of ethermint nodes to be run (does not contain master node)
-        :return: a master instance and a list of all other instances created
+        :param ethermint_nodes_count: The number of ethermint nodes to be run
+        :return: a list of all other instances created
         """
 
         security_group_name = "ethermint-security_group-salt-ssh-" + str(datetime.now())
@@ -172,39 +169,19 @@ class Chainmaker:
 
         region = DEFAULT_REGION
 
-        master_keyfile = "salt-instance-master" + str(int(time.time())) + "_" + uuid4().hex
-        create_keyfile(master_keyfile, region)
-        logger.info("Master SSH key in {}".format(master_keyfile))
-
-        master_instance_config = [{
-            "region": region,
-            "ami": master_ami,
-            "security_groups": [security_group_id],
-            "key_name": master_keyfile,
-            "tags": [
-                {
-                    "Key": "Name",
-                    "Value": DEFAULT_INSTANCE_NAME + master_ami
-                }
-            ],
-            "add_volume": False
-        }]
-        master_instance = self.create_ec2s_from_json(master_instance_config)[0]
-        logger.info("Master instance running")
-
-        minion_instances_config = []
+        instances_config = []
 
         # Creating a common key for all minions for now
-        minion_keyfile = "salt-instance-minion" + str(int(time.time())) + "_" + uuid4().hex
-        create_keyfile(minion_keyfile, region)
-        logger.info("Minion SSH key in {}".format(minion_keyfile))
+        ethermint_network_keyfile = "salt-instance-" + str(int(time.time())) + "_" + uuid4().hex
+        create_keyfile(ethermint_network_keyfile, region)
+        logger.info("Nodes SSH key in {}".format(ethermint_network_keyfile))
 
         for i in range(ethermint_nodes_count):
-            minion_instances_config.append({
+            instances_config.append({
                 "region": region,
                 "ami": ethermint_node_ami,
                 "security_groups": [security_group_id],
-                "key_name": minion_keyfile,
+                "key_name": ethermint_network_keyfile,
                 "tags": [
                     {
                         "Key": "Name",
@@ -214,10 +191,14 @@ class Chainmaker:
                 "add_volume": True
             })
 
-        minion_instances = self.create_ec2s_from_json(minion_instances_config)
+        nodes = self.create_ec2s_from_json(instances_config)
         logger.info("All minion {} instances running".format(ethermint_nodes_count))
 
-        self._prepare_salt(master_instance, minion_instances)
-        self._prepare_ethermint(minion_instances)
+        if update_salt_roster:
+            self._update_salt(nodes)
+        self._prepare_ethermint(nodes)
 
-        return master_instance, minion_instances
+        for node in nodes:
+            logger.info("Ethermint instance ID: {}".format(node.id))
+
+        return nodes
