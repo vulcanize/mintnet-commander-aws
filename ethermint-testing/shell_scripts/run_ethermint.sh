@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -eu
+set -euo xtrace
 
 export GOPATH=$HOME/go
 
@@ -9,6 +9,6 @@ else
     SEEDS="--seeds $1"
 fi
 
-$GOPATH/bin/ethermint --datadir /ethermint/data \
+nohup $GOPATH/bin/ethermint --datadir /ethermint/data \
     --rpc --rpcaddr=0.0.0.0 --rpcapi "eth,net,web3,personal" \
-    $SEEDS
+    $SEEDS > /ethermint/data/ethermint.log 2>&1 &
