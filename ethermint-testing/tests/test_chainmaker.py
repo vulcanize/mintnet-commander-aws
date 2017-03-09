@@ -1,10 +1,11 @@
 import os
 import shutil
+from os.path import join, dirname
 
 import boto3
 import pytest
+import yaml
 from moto import mock_ec2
-from os.path import join, dirname
 
 from chainmaker import Chainmaker
 from settings import DEFAULT_REGION, DEFAULT_DEVICE
@@ -88,3 +89,25 @@ def test_ethermint_network_mounts_volumes(chainmaker, mockossystem):
         mockossystem.assert_any_call("ssh -o StrictHostKeyChecking=no -i {0} ubuntu@{1} "
                                      "'bash -s' < shell_scripts/mount_new_volume.sh".format(
             get_shh_key_file(node.key_name), node.public_ip_address))
+
+
+@mock_ec2
+def test_ethermint_network_update_roster(chainmaker, mockossystem):
+    ami = "ami-10d50c06"
+    nodes = chainmaker.create_ethermint_network(NETWORK_SIZE, ami, True)
+    nodes_ips = [node.public_ip_address for node in nodes]
+
+    filepath = None
+    sh_command_start = "shell_scripts/copy_roster.sh"
+    for c in mockossystem.mock_calls:
+        first_arg = c[1][0]
+        if first_arg.startswith(sh_command_start):
+            filepath = first_arg[first_arg.find(sh_command_start) + len(sh_command_start):].strip()
+            break
+    assert filepath
+
+    with open(filepath, "r") as f:
+        contents = yaml.safe_load(f)
+
+    for c in contents:
+        assert contents[c]['host'] in nodes_ips
