@@ -36,16 +36,14 @@ def chainmaker(monkeypatch, mockossystem, tmp_dir, fake_ethermint_files):
 @mock_ec2
 def test_creating_ethermint_network(chainmaker):
     ec2 = boto3.resource('ec2', region_name=DEFAULT_REGION)
-    master_ami, minion_ami = "ami-06875e10", "ami-10d50c06"
+    ami = "ami-10d50c06"
 
-    master, minions = chainmaker.create_ethermint_network(NETWORK_SIZE, master_ami, minion_ami)
-    instances = list(ec2.instances.all())
-    assert len(instances) == len(minions) + 1
+    nodes = chainmaker.create_ethermint_network(NETWORK_SIZE, ami)
+    assert len(list(ec2.instances.all())) == len(nodes)
 
-    # check if master and minions have the correct AMI
-    assert master.image_id == master_ami
-    for minion in minions:
-        assert minion.image_id == minion_ami
+    # check if nodes have the correct AMI
+    for node in nodes:
+        assert node.image_id == ami
 
 
 @mock_ec2
@@ -56,27 +54,23 @@ def test_creating_ethermint_network_failures(chainmaker):
 @mock_ec2
 def test_ethermint_network_security_group(chainmaker):
     # test if nodes in the network can talk to each other (are in the same security group)
-    master_ami, minion_ami = "ami-06875e10", "ami-10d50c06"
-    master, minions = chainmaker.create_ethermint_network(NETWORK_SIZE, master_ami, minion_ami)
+    ami = "ami-10d50c06"
+    nodes = chainmaker.create_ethermint_network(NETWORK_SIZE, ami)
 
-    master_sec_groups = [group["GroupName"] for group in master.security_groups]
-    assert len(master_sec_groups) == 1
-
-    for minion in minions:
-        minion_sec_groups = [group["GroupName"] for group in minion.security_groups]
-        assert len(minion_sec_groups) == 1
-        assert minion_sec_groups == master_sec_groups
+    for node in nodes:
+        node_sec_groups = [group["GroupName"] for group in node.security_groups]
+        assert len(node_sec_groups) == 1
 
 
 @mock_ec2
 def test_ethermint_network_attaches_volumes(chainmaker):
-    master_ami, minion_ami = "ami-06875e10", "ami-10d50c06"
-    master, minions = chainmaker.create_ethermint_network(NETWORK_SIZE, master_ami, minion_ami)
+    ami = "ami-10d50c06"
+    nodes = chainmaker.create_ethermint_network(NETWORK_SIZE, ami)
 
-    for minion in minions:
-        assert len(minion.block_device_mappings) == 2  # the default drive and our additional drive
+    for node in nodes:
+        assert len(node.block_device_mappings) == 2  # the default drive and our additional drive
         found_our_volume = False
-        for bdm in minion.block_device_mappings:
+        for bdm in node.block_device_mappings:
             if bdm["DeviceName"] == DEFAULT_DEVICE:
                 found_our_volume = True
                 break
@@ -87,10 +81,10 @@ def test_ethermint_network_attaches_volumes(chainmaker):
 def test_ethermint_network_mounts_volumes(chainmaker, mockossystem):
     # mount has to be done manually since the boto3 interface does not allow to do this
     # for now, testing if ssh command is correct
-    master_ami, minion_ami = "ami-06875e10", "ami-10d50c06"
-    master, minions = chainmaker.create_ethermint_network(NETWORK_SIZE, master_ami, minion_ami)
+    ami = "ami-10d50c06"
+    nodes = chainmaker.create_ethermint_network(NETWORK_SIZE, ami)
 
-    for minion in minions:
+    for node in nodes:
         mockossystem.assert_any_call("ssh -o StrictHostKeyChecking=no -i {0} ubuntu@{1} "
                                      "'bash -s' < shell_scripts/mount_new_volume.sh".format(
-            get_shh_key_file(minion.key_name), minion.public_ip_address))
+            get_shh_key_file(node.key_name), node.public_ip_address))
