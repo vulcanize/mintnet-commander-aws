@@ -41,6 +41,7 @@ class Chainshotter:
             logger.info("Creating snapshot of volume {} of instance {}".format(volume.id, instance.id))
 
             snapshot = self.ec2.create_snapshot(VolumeId=volume.id, Description='ethermint-backup')
+            snapshot.wait_until_completed()
             logger.info("Created snapshot {}".format(snapshot.id))
 
             snapshot_info = {
@@ -93,15 +94,16 @@ class Chainshotter:
             new_instance = chainmaker.create_ec2s_from_json([snapshot_info["instance"]])[0]
             logger.info("Created new instance {} from AMI {}".format(new_instance.id, snapshot_info["instance"]["ami"]))
 
-            volume = self.ec2.create_volume(SnapshotId=snapshot_info["snapshot"]["id"],
+            snapshot = self.ec2.Snapshot(snapshot_info["snapshot"]["id"])
+
+            volume = self.ec2.create_volume(SnapshotId=snapshot.id,
                                             AvailabilityZone=new_instance.placement["AvailabilityZone"])
 
             wait_for_available_volume(volume, get_region_name(new_instance.placement["AvailabilityZone"]))
 
             new_instance.attach_volume(VolumeId=volume.id, Device=DEFAULT_DEVICE)
             logger.info("Attached volume {} containing snapshot {} to instance {}".format(volume.id,
-                                                                                          snapshot_info["snapshot"][
-                                                                                              "id"],
+                                                                                          snapshot.id,
                                                                                           new_instance.id))
 
             instances.append(new_instance)
