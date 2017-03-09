@@ -22,30 +22,23 @@ go install github.com/tendermint/ethermint/cmd/ethermint
 
 Go to `ethermint-testing` directory, and then:
 
-0. Create a master key which will be used in salt-ssh orchestration
-
-```bash
-python api.py create_master_keys --name <master-key-name>
-```
-
-the command saves a key pair to the default location.
-
 1. Run
  
 ```bash 
 python api.py create_amis --master-pkey-name <master-key-name>
 ```
 
-providing the name from above. The command outputs the IDs of AMIs that were created.
+providing the name of the master keypair to be used. The command outputs the ID of AMI that was created.
 Please note that creating an AMI also creates a snapshot in EC2.
 
-2. Using the newly created AMIs, create an ethermint network:
+2. Using the newly created AMI, create an ethermint network:
 
 ```bash
-python api.py create --count <NR_OF_INSTANCES> --master-ami <master-ami-id> --ethermint-node-ami <minion-ami-id>
+python api.py create --count <NR_OF_INSTANCES> --ami <ami-id> --update-roster
 ```
 
-Parameter `count` defines how many ethermint nodes should be run. AMIs indicate AMI ID's to be used when spinning up new EC2 instances.
+Parameter `count` defines how many ethermint nodes should be run. AMI indicates the AMI ID to be used when spinning up new EC2 instances.
+`update-roster` allows to rewrite local `/etc/salt/roster/` file; by default the file is not updated. Use with caution!
 
 After running this command, a network is running in AWS.
 
@@ -59,7 +52,7 @@ To chainshot a network, one needs to list all of the instance IDs which create t
 python api.py chainshot --instances <INSTANCE_1_ID> --instances <INSTANCE_2_ID> --instances <INSTANCE_3_ID>
 ```
 
-This command creates a file called `chainshot.json` in the working directory. Note that the master node cannot be chainshot.
+This command creates a file called `chainshot.json` in the working directory. 
 
 Thawing can be done using said file like so:
 
@@ -67,11 +60,11 @@ Thawing can be done using said file like so:
 python api.py thaw <FILENAME>
 ```
 
-Running the following creates new instances from snapshots. This does not recreate the master node. TODO
+Running the following creates new instances from snapshots.
 
 ## Orchestrating
 
-We use saltstack-ssh to orchestrate all ethermint instances. Salt-master is running on master instance and is configured to be able to call other nodes.
+We use saltstack-ssh to orchestrate all ethermint instances. Salt-master should be running on master instance and can be configured to be able to call other nodes.
 To use salt-ssh, first log into the master node using ssh:
 
 ```bash
@@ -85,3 +78,4 @@ sudo salt-ssh --priv ~/.ssh/master_key -i "*" test.ping
 ```
 
 which will ping all the instances and collect results.
+
