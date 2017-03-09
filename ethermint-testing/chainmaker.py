@@ -127,8 +127,8 @@ class Chainmaker:
             run_sh_script("shell_scripts/prepare_ethermint_env.sh", instance.key_name, instance.public_ip_address)
 
             os.system(
-                "scp -o StrictHostKeyChecking=no -C -i {} -r {} ubuntu@{}:/ethermint/data".format(
-                    get_shh_key_file(instance.key_name), os.path.join(ethermint_files_location, "data/"),
+                "scp -o StrictHostKeyChecking=no -C -i {} -r {} ubuntu@{}:/ethermint".format(
+                    get_shh_key_file(instance.key_name), os.path.join(ethermint_files_location, "data"),
                     instance.public_ip_address))
 
         first_seed = None
