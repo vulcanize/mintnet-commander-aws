@@ -131,7 +131,8 @@ class Chainmaker:
 
             os.system(
                 "scp -o StrictHostKeyChecking=no -C -i {} -r {} ubuntu@{}:/ethermint/data".format(
-                    get_shh_key_file(instance.key_name), os.path.join(ethermint_files_location, "data/"), instance.public_ip_address))
+                    get_shh_key_file(instance.key_name), os.path.join(ethermint_files_location, "data/"),
+                    instance.public_ip_address))
 
         first_seed = None
         for i, instance in enumerate(minion_instances):
@@ -153,10 +154,6 @@ class Chainmaker:
                 run_sh_script("shell_scripts/run_ethermint.sh {}".format(first_seed),
                               instance.key_name,
                               instance.public_ip_address)
-
-
-
-
 
 
     def create_ethermint_network(self, ethermint_nodes_count, master_ami, ethermint_node_ami):

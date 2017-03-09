@@ -29,8 +29,6 @@ def fill_validators(num_validators, genesis_file, new_genesis_file, output_dir):
     with open(genesis_file) as f:
         genesis = json.loads(f.read())
         genesis['validators'] = validators
-        print(genesis)
 
-    print(new_genesis_file)
     with open(new_genesis_file, 'w') as f:
         f.write(json.dumps(genesis))

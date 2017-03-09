@@ -17,11 +17,12 @@ NETWORK_SIZE = 4
 def fake_ethermint_files(tmp_dir):
     dest = join(tmp_dir, "ethermint", "priv_validator.json.{}")
     os.makedirs(dirname(dest))
+    testsdir = os.path.dirname(os.path.realpath(__file__))
     for i in xrange(NETWORK_SIZE):
-        shutil.copyfile("tests/priv_validator.json.in", dest.format(i+1))
+        shutil.copyfile(os.path.join(testsdir, "priv_validator.json.in"), dest.format(i+1))
     dest_datadir = join(tmp_dir, "ethermint", "data")
     os.makedirs(dest_datadir)
-    shutil.copy("tests/genesis.json", dest_datadir)
+    shutil.copy(os.path.join(testsdir, "genesis.json"), dest_datadir)
 
 
 @pytest.fixture()

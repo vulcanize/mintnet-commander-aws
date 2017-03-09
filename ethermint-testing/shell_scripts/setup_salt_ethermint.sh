@@ -31,4 +31,11 @@ mkdir -p $GOPATH/src $GOPATH/bin
 sudo chmod -R 777 $GOPATH
 export PATH=$GOPATH/bin:/usr/local/go/bin:$PATH
 
+echo "export GOROOT=/usr/local/go" >> $HOME/.bashrc
+echo "export GOPATH=$HOME/go" >> $HOME/.bashrc
+echo "export PATH=$HOME/go/bin:/usr/local/go/bin:$PATH" >> $HOME/.bashrc
+
+# install libusb (used by geth to support usb devices)
+sudo apt-get install libusb-dev
+
 go get github.com/tendermint/ethermint/cmd/ethermint

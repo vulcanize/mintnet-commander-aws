@@ -1,8 +1,8 @@
 # the list of ports to be added to the security group
 import os
 
-# ssh is 22, 4505 and 4506 are needed by salt
-DEFAULT_PORTS = [22, 4505, 4506]
+# ssh is 22, 4505 and 4506 are needed by salt; others are ethermint ports
+DEFAULT_PORTS = [22, 4505, 4506] + [46656, 46657, 8545]
 
 # the default AWS region
 DEFAULT_REGION = "us-east-1"
