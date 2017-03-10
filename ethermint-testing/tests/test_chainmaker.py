@@ -16,12 +16,14 @@ from utils import get_shh_key_file, get_region_name
 def fake_ethermint_files(tmp_dir):
     def make_fake(count):
         dest = join(tmp_dir, "ethermint", "priv_validator.json.{}")
-        os.makedirs(dirname(dest))
+        if not os.path.exists(dirname(dest)):
+            os.makedirs(dirname(dest))
         testsdir = os.path.dirname(os.path.realpath(__file__))
         for i in xrange(count):
             shutil.copyfile(os.path.join(testsdir, "priv_validator.json.in"), dest.format(i+1))
         dest_datadir = join(tmp_dir, "ethermint", "data")
-        os.makedirs(dest_datadir)
+        if not os.path.exists(dest_datadir):
+            os.makedirs(dest_datadir)
         shutil.copy(os.path.join(testsdir, "genesis.json"), dest_datadir)
     return make_fake
 
@@ -82,13 +84,37 @@ def test_ethermint_network_security_group(chainmaker, mockregions):
 
 
 @mock_ec2
-def test_ethermint_network_creates_AMIs(chainmaker, mockregions):
-    pass
+def test_ethermint_network_creates_AMIs(chainmaker, mockregions, mockamibuilder):
+    ethermint_version = "HEAD"
+    chainmaker.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
+
+    distinct_regions = set(mockregions)
+    for region in distinct_regions:
+        mockamibuilder().create_ami.assert_any_call(ethermint_version, "test_ethermint_ami-ssh", regions=[region])
 
 
 @mock_ec2
-def test_ethermint_network_uses_existing_AMIs_if_possible(chainmaker, mockregions):
-    pass
+def test_ethermint_network_uses_existing_AMIs_when_exist(chainmaker, mockregions, mockamibuilder, create_mock_amis):
+    ethermint_version = "HEAD"
+
+    create_mock_amis(set(mockregions), "test_ethermint_ami-ssh", ethermint_version)
+
+    chainmaker.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
+    mockamibuilder().create_ami.assert_not_called()
+
+
+@mock_ec2
+def test_ethermint_network_find_AMI(chainmaker, mockregions, mockamibuilder, create_mock_amis, fake_ethermint_files):
+    ethermint_version = "HEAD"
+
+    create_mock_amis(set(mockregions), "test_ethermint_ami-ssh", ethermint_version)
+
+    new_region = "us-gov-west-1"
+    mockregions += [new_region]
+    fake_ethermint_files(len(mockregions))  # need to rebuild fake files when adding region :(
+
+    chainmaker.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
+    mockamibuilder().create_ami.called_once_with(ethermint_version, "test_ethermint_ami-ssh", regions=[new_region])
 
 
 @mock_ec2
