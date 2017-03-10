@@ -10,14 +10,19 @@ from settings import DEFAULT_REGION, DEFAULT_INSTANCE_TYPE
 
 
 @pytest.fixture()
+def mockami():
+    return "ami-90b01686"
+
+
+@pytest.fixture()
 def mockossystem():
     return MagicMock(os.system, return_value=0)
 
 
 @pytest.fixture()
-def mockamibuilder():
+def mockamibuilder(mockami):
     amibuilder = MagicMock(AMIBuilder)
-    amibuilder().create_ami = MagicMock(return_value="AMIID")
+    amibuilder().create_ami = MagicMock(return_value=mockami)
     return amibuilder
 
 

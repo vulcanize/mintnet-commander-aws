@@ -9,9 +9,7 @@ from moto import mock_ec2
 
 from chainmaker import Chainmaker
 from settings import DEFAULT_DEVICE
-from utils import get_shh_key_file, get_region_name
-
-NETWORK_SIZE = 4
+from utils import get_shh_key_file
 
 
 @pytest.fixture()
@@ -29,35 +27,37 @@ def fake_ethermint_files(tmp_dir):
 
 
 @pytest.fixture()
-def chainmaker(monkeypatch, mockossystem, mockamibuilder, tmp_dir):
+def chainmaker(monkeypatch, mockossystem, mockamibuilder, tmp_dir, mockregions, fake_ethermint_files):
     monkeypatch.setattr(os, 'system', mockossystem)
     monkeypatch.setattr('utils.DEFAULT_FILES_LOCATION', tmp_dir)
     monkeypatch.setattr('chainmaker.DEFAULT_FILES_LOCATION', tmp_dir)
     monkeypatch.setattr('chainmaker.AMIBuilder', mockamibuilder)
+    fake_ethermint_files(len(mockregions))
     return Chainmaker()
 
 
+@pytest.fixture()
+def mockregions():
+    return ["ap-northeast-1", "ap-northeast-1", "ap-northeast-1", "eu-central-1", "us-west-1", "us-west-1"]
+
+
 @mock_ec2
-def test_creating_ethermint_network(chainmaker, fake_ethermint_files):
-    regions = ["ap-northeast-1", "ap-northeast-1", "ap-northeast-1", "eu-central-1", "us-west-1", "us-west-1"]
-    fake_ethermint_files(len(regions))
-    ethermint_version = "HEAD"
+def test_creating_ethermint_network(chainmaker, mockami, mockregions):
+    nodes = chainmaker.create_ethermint_network(mockregions, "HEAD", "master_pub_key")
 
-    nodes = chainmaker.create_ethermint_network(regions, ethermint_version, "master_pub_key")
-
-    distinct_regions = set(regions)
+    distinct_regions = set(mockregions)
     instances_in_regions = {}
-    for r in regions:
+    for r in mockregions:
         instances_in_regions[r] = instances_in_regions.get(r, 0) + 1
 
     for region in distinct_regions:
         ec2 = boto3.resource('ec2', region_name=region)
         assert len(list(ec2.instances.all())) == instances_in_regions[region]
 
-    # check if nodes have the correct AMI tags
+    # check if nodes have the correct AMI
     for node in nodes:
-        ec2 = boto3.resource('ec2', region_name=get_region_name(node.placement["AvailabilityZone"]))
-        assert {'Key': 'Ethermint', 'Value': ethermint_version} in ec2.Instace(node.image_id).tags
+        assert node.image_id == mockami
+    # TODO check if image has correct tags?
 
 
 @mock_ec2
@@ -66,10 +66,9 @@ def test_creating_ethermint_network_failures(chainmaker):
 
 
 @mock_ec2
-def test_ethermint_network_security_group(chainmaker):
+def test_ethermint_network_security_group(chainmaker, mockregions):
     # test if nodes in the network can talk to each other (are in the same security group)
-    ami = "ami-10d50c06"
-    nodes = chainmaker.create_ethermint_network(NETWORK_SIZE, ami)
+    nodes = chainmaker.create_ethermint_network(mockregions, "HEAD", "master_pub_key")
 
     for node in nodes:
         node_sec_groups = [group["GroupName"] for group in node.security_groups]
@@ -77,9 +76,8 @@ def test_ethermint_network_security_group(chainmaker):
 
 
 @mock_ec2
-def test_ethermint_network_attaches_volumes(chainmaker):
-    ami = "ami-10d50c06"
-    nodes = chainmaker.create_ethermint_network(NETWORK_SIZE, ami)
+def test_ethermint_network_attaches_volumes(chainmaker, mockregions):
+    nodes = chainmaker.create_ethermint_network(mockregions, "HEAD", "master_pub_key")
 
     for node in nodes:
         assert len(node.block_device_mappings) == 2  # the default drive and our additional drive
@@ -92,11 +90,10 @@ def test_ethermint_network_attaches_volumes(chainmaker):
 
 
 @mock_ec2
-def test_ethermint_network_mounts_volumes(chainmaker, mockossystem):
+def test_ethermint_network_mounts_volumes(chainmaker, mockregions, mockossystem):
     # mount has to be done manually since the boto3 interface does not allow to do this
     # for now, testing if ssh command is correct
-    ami = "ami-10d50c06"
-    nodes = chainmaker.create_ethermint_network(NETWORK_SIZE, ami)
+    nodes = chainmaker.create_ethermint_network(mockregions, "HEAD", "master_pub_key")
 
     for node in nodes:
         mockossystem.assert_any_call("ssh -o StrictHostKeyChecking=no -i {0} ubuntu@{1} "
@@ -105,9 +102,8 @@ def test_ethermint_network_mounts_volumes(chainmaker, mockossystem):
 
 
 @mock_ec2
-def test_ethermint_network_update_roster(chainmaker, mockossystem):
-    ami = "ami-10d50c06"
-    nodes = chainmaker.create_ethermint_network(NETWORK_SIZE, ami, True)
+def test_ethermint_network_update_roster(chainmaker, mockregions, mockossystem):
+    nodes = chainmaker.create_ethermint_network(mockregions, "HEAD", "master_pub_key", update_salt_roster=True)
     nodes_ips = [node.public_ip_address for node in nodes]
 
     filepath = None
