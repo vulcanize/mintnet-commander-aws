@@ -265,3 +265,19 @@ class Chainmaker:
             logger.info("Ethermint instance ID: {} in {}".format(node.id, node.placement["AvailabilityZone"]))
 
         return nodes
+
+    def isalive(self, region_instance):
+        logger.info("Getting log on instance ID: {}".format(region_instance.id))
+
+        output1 = run_sh_script("shell_scripts/log_ethermint.sh",
+                                region_instance.instance.key_name,
+                                region_instance.instance.public_ip_address)
+
+        import time
+        time.sleep(2)
+
+        output2 = run_sh_script("shell_scripts/log_ethermint.sh",
+                                region_instance.instance.key_name,
+                                region_instance.instance.public_ip_address)
+
+        return output1 != output2

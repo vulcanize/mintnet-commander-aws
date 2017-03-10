@@ -48,7 +48,7 @@ def create(env, update_roster, regions, ethermint_version, master_pkey_name, nam
 
 @ethermint_testing.command()
 @click.option('--name', default="Ethermint-network-chainshot", help='The name of the chainshot')
-@click.option('--instances', required=True, default=[], type=(unicode, unicode),
+@click.option('--instances', '-i', required=True, default=[], type=(unicode, unicode),
               multiple=True, help='The list of ethermint instance objects, supplied in "region id" paris')
 @click.option('--output-file-path', default="chainshot.json", help='Output chainshot file path (json)')
 @pass_environment
@@ -74,6 +74,13 @@ def thaw(env, chainshot_file):
         chainshot = json.load(json_data)
         instances = env.chainshotter.thaw(chainshot)
         return instances
+
+
+@ethermint_testing.command(help="quick ugly check if the consensus on the instance is making progress"
+                                "usage: isalive region instance_id")
+@click.argument('instance', type=(unicode, unicode))
+def isalive(instance):
+    print Chainmaker().isalive(RegionInstancePair(*instance))
 
 
 cli = click.CommandCollection(sources=[ethermint_testing])

@@ -1,4 +1,5 @@
 import os
+import subprocess
 
 import boto3
 import logging
@@ -67,17 +68,22 @@ def run_sh_script(script_filename, ssh_key_name, ip_address):
     :return:
     """
     logger.info("Running ./{} on instance IP: {}".format(script_filename, ip_address))
-    ssh_command = lambda ssh_key_file, ip, script: \
-        "ssh -o StrictHostKeyChecking=no -i {0} ubuntu@{1} 'bash -s' < {2}".format(ssh_key_file, ip, script)
+    ssh_command = "ssh -o StrictHostKeyChecking=no -i {0} ubuntu@{1} 'bash -s' < {2}" \
+                  "".format(get_shh_key_file(ssh_key_name), ip_address, script_filename)
 
     result = 1
     tries = 0
     while result != 0 and tries < MAX_MACHINE_CALL_TRIES:
-        result = os.system(ssh_command(get_shh_key_file(ssh_key_name), ip_address, script_filename))
-        tries += 1
-        if result != 0:
+        try:
+            tries += 1
+            output = subprocess.check_output(ssh_command, shell=True)  # FIXME, shell=True unsafe
+            result = 0
+        except subprocess.CalledProcessError as e:
+            logger.info("No success yet tries {}/{}: {}".format(tries, MAX_MACHINE_CALL_TRIES, e.message))
             time.sleep(5)  # let things settle, SSH refuses connection
+
     if tries == MAX_MACHINE_CALL_TRIES:
         logger.error("Unable to perform actions using SSH")
     else:
         logger.info("{} run successfully".format(script_filename))
+        return output

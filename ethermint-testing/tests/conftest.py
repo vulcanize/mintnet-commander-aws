@@ -1,7 +1,8 @@
-import os
+import subprocess
 from datetime import datetime
 
 import boto3
+import os
 import pytest
 from mock import MagicMock
 from moto import mock_ec2
@@ -28,6 +29,11 @@ def moto():
 @pytest.fixture()
 def mockossystem():
     return MagicMock(os.system, return_value=0)
+
+
+@pytest.fixture()
+def mocksubprocess():
+    return MagicMock(subprocess.check_output, return_value="")
 
 
 @pytest.fixture()

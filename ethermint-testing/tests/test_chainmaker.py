@@ -1,12 +1,15 @@
 import os
 import shutil
+import subprocess
 from os.path import join, dirname
 
 import boto3
+import mock
 import pytest
 import yaml
 
 from chainmaker import Chainmaker
+from chainshotter import RegionInstancePair
 from settings import DEFAULT_DEVICE, DEFAULT_PORTS
 from utils import get_shh_key_file, get_region_name
 
@@ -19,16 +22,19 @@ def fake_ethermint_files(tmp_dir):
             os.makedirs(dirname(dest))
         testsdir = os.path.dirname(os.path.realpath(__file__))
         for i in xrange(count):
-            shutil.copyfile(os.path.join(testsdir, "priv_validator.json.in"), dest.format(i+1))
+            shutil.copyfile(os.path.join(testsdir, "priv_validator.json.in"), dest.format(i + 1))
         dest_datadir = join(tmp_dir, "ethermint", "data")
         if not os.path.exists(dest_datadir):
             os.makedirs(dest_datadir)
         shutil.copy(os.path.join(testsdir, "genesis.json"), dest_datadir)
+
     return make_fake
 
 
 @pytest.fixture()
-def chainmaker(monkeypatch, mockossystem, mockamibuilder, tmp_dir, mockregions, fake_ethermint_files, moto):
+def chainmaker(monkeypatch, mockossystem, mocksubprocess,
+               mockamibuilder, tmp_dir, mockregions, fake_ethermint_files, moto):
+    monkeypatch.setattr(subprocess, 'check_output', mocksubprocess)
     monkeypatch.setattr(os, 'system', mockossystem)
     monkeypatch.setattr('utils.DEFAULT_FILES_LOCATION', tmp_dir)
     monkeypatch.setattr('chainmaker.DEFAULT_FILES_LOCATION', tmp_dir)
@@ -52,7 +58,7 @@ def test_creating_ethermint_network(chainmaker, mockami, mockregions):
     # check if nodes have the correct AMI
     for node in nodes:
         assert node.image_id == mockami
-    # TODO check if image has correct tags?
+        # TODO check if image has correct tags?
 
 
 def test_creating_ethermint_network_failures(chainmaker):
@@ -118,15 +124,16 @@ def test_ethermint_network_attaches_volumes(chainmaker, mockregions):
         assert found_our_volume
 
 
-def test_ethermint_network_mounts_volumes(chainmaker, mockregions, mockossystem):
+def test_ethermint_network_mounts_volumes(chainmaker, mockregions, mocksubprocess):
     # mount has to be done manually since the boto3 interface does not allow to do this
     # for now, testing if ssh command is correct
     nodes = chainmaker.create_ethermint_network(mockregions, "HEAD", "master_pub_key")
 
     for node in nodes:
-        mockossystem.assert_any_call("ssh -o StrictHostKeyChecking=no -i {0} ubuntu@{1} "
-                                     "'bash -s' < shell_scripts/mount_new_volume.sh".format(
-            get_shh_key_file(node.key_name), node.public_ip_address))
+        mocksubprocess.assert_any_call("ssh -o StrictHostKeyChecking=no -i {0} ubuntu@{1} "
+                                       "'bash -s' < shell_scripts/mount_new_volume.sh".format(
+            get_shh_key_file(node.key_name), node.public_ip_address),
+            shell=True)
 
 
 def test_ethermint_network_update_roster(chainmaker, mockregions, mockossystem):
@@ -149,14 +156,15 @@ def test_ethermint_network_update_roster(chainmaker, mockregions, mockossystem):
         assert contents[c]['host'] in nodes_ips
 
 
-def test_ethermint_network_prepares_for_ethermint(chainmaker, mockregions, mockossystem, tmp_dir):
+def test_ethermint_network_prepares_for_ethermint(chainmaker, mockregions, mocksubprocess, mockossystem, tmp_dir):
     nodes = chainmaker.create_ethermint_network(mockregions, "HEAD", "master_pub_key")
     ethermint_files_location = os.path.join(tmp_dir, "ethermint")
 
     for i, node in enumerate(nodes):
-        mockossystem.assert_any_call("ssh -o StrictHostKeyChecking=no -i {0} ubuntu@{1} "
-                                     "'bash -s' < shell_scripts/prepare_ethermint_env.sh".format(
-            get_shh_key_file(node.key_name), node.public_ip_address))
+        mocksubprocess.assert_any_call("ssh -o StrictHostKeyChecking=no -i {0} ubuntu@{1} "
+                                       "'bash -s' < shell_scripts/prepare_ethermint_env.sh".format(
+            get_shh_key_file(node.key_name), node.public_ip_address),
+            shell=True)
 
         # make sure files are copied: data folder and priv_validator file
         mockossystem.assert_any_call("scp -o StrictHostKeyChecking=no -C -i {} -r {} ubuntu@{}:/ethermint".format(
@@ -164,22 +172,48 @@ def test_ethermint_network_prepares_for_ethermint(chainmaker, mockregions, mocko
             node.public_ip_address))
 
         validator_path = os.path.join(ethermint_files_location, "priv_validator.json.{}".format(i + 1))
-        mockossystem.assert_any_call("scp -o StrictHostKeyChecking=no -C -i {} {} ubuntu@{}:/ethermint/data/priv_validator.json".format(
-            get_shh_key_file(node.key_name), validator_path,
-            node.public_ip_address))
+        mockossystem.assert_any_call(
+            "scp -o StrictHostKeyChecking=no -C -i {} {} ubuntu@{}:/ethermint/data/priv_validator.json".format(
+                get_shh_key_file(node.key_name), validator_path,
+                node.public_ip_address))
 
 
-def test_ethermint_network_runs_ethermint(chainmaker, mockregions, mockossystem):
+def test_ethermint_network_runs_ethermint(chainmaker, mockregions, mocksubprocess):
     nodes = chainmaker.create_ethermint_network(mockregions, "HEAD", "master_pub_key")
 
     first = None
     for node in nodes:
         if first:
-            mockossystem.assert_any_call("ssh -o StrictHostKeyChecking=no -i {0} ubuntu@{1} "
-                                         "'bash -s' < shell_scripts/run_ethermint.sh {2}".format(
-                get_shh_key_file(node.key_name), node.public_ip_address, str(first.public_ip_address) + ":46656"))
+            mocksubprocess.assert_any_call("ssh -o StrictHostKeyChecking=no -i {0} ubuntu@{1} "
+                                           "'bash -s' < shell_scripts/run_ethermint.sh {2}".format(
+                get_shh_key_file(node.key_name), node.public_ip_address, str(first.public_ip_address) + ":46656"),
+                shell=True)
         else:
-            mockossystem.assert_any_call("ssh -o StrictHostKeyChecking=no -i {0} ubuntu@{1} "
-                                         "'bash -s' < shell_scripts/run_ethermint.sh".format(
-                get_shh_key_file(node.key_name), node.public_ip_address))
+            mocksubprocess.assert_any_call("ssh -o StrictHostKeyChecking=no -i {0} ubuntu@{1} "
+                                           "'bash -s' < shell_scripts/run_ethermint.sh".format(
+                get_shh_key_file(node.key_name), node.public_ip_address),
+                shell=True)
             first = node
+
+
+def test_isalive_commands(chainmaker, mocksubprocess, mockregions):
+    nodes = chainmaker.create_ethermint_network(mockregions, "HEAD", "master_pub_key")
+
+    mocksubprocess.reset_mock()
+    mocksubprocess.return_value = ["a", "b"]
+    chainmaker.isalive(RegionInstancePair(mockregions[0], nodes[0].id))
+
+    call_args = mocksubprocess.call_args_list
+    assert len(call_args) == 2
+    assert call_args == [
+        mock.call("ssh -o StrictHostKeyChecking=no -i {0} ubuntu@{1} "
+                  "'bash -s' < shell_scripts/log_ethermint.sh".format(
+            get_shh_key_file(nodes[0].key_name),
+            nodes[0].public_ip_address),
+            shell=True),
+        mock.call("ssh -o StrictHostKeyChecking=no -i {0} ubuntu@{1} "
+                  "'bash -s' < shell_scripts/log_ethermint.sh".format(
+            get_shh_key_file(nodes[0].key_name),
+            nodes[0].public_ip_address),
+            shell=True),
+    ]

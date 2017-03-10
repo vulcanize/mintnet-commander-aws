@@ -3,6 +3,7 @@ import os
 import boto3
 import mock
 import pytest
+import subprocess
 from botocore.exceptions import ClientError
 from mock import MagicMock
 
@@ -15,8 +16,9 @@ ETHERMINT_P2P_PORT = 46656
 
 
 @pytest.fixture()
-def chainshotter(monkeypatch, mockossystem):
+def chainshotter(monkeypatch, mockossystem, mocksubprocess):
     monkeypatch.setattr(os, 'system', mockossystem)
+    monkeypatch.setattr(subprocess, 'check_output', mocksubprocess)
     monkeypatch.setattr(os.path, 'exists', lambda path: True)
     return Chainshotter()
 
@@ -42,31 +44,31 @@ def prepare_chainshot(moto):
     return _prepare_chainshot
 
 
-def test_chainshot_halts_restarts(chainshotter, mock_instance_with_volume, mockossystem):
+def test_chainshot_halts_restarts(chainshotter, mock_instance_with_volume, mocksubprocess):
     # 2 instances to check if halt and start are in right order
     instance1 = mock_instance_with_volume()
     instance2 = mock_instance_with_volume()
     chainshotter.chainshot("Test", [RegionInstancePair(DEFAULT_REGION, instance.id) for instance in [instance1, instance2]])
 
-    args_list = mockossystem.call_args_list
+    args_list = mocksubprocess.call_args_list
     assert len(args_list) == 4
 
     assert args_list[0:2] == [mock.call("ssh -o StrictHostKeyChecking=no -i {0} ubuntu@{1} "
                                         "'bash -s' < shell_scripts/halt_ethermint.sh".format(
         get_shh_key_file(instance.key_name),
-        instance.public_ip_address)) for instance in [instance1, instance2]]
+        instance.public_ip_address), shell=True) for instance in [instance1, instance2]]
 
     assert args_list[2] == mock.call("ssh -o StrictHostKeyChecking=no -i {0} ubuntu@{1} "
                                      "'bash -s' < shell_scripts/run_ethermint.sh".format(
         get_shh_key_file(instance1.key_name),
-        instance1.public_ip_address))
+        instance1.public_ip_address), shell=True)
 
     assert args_list[3] == mock.call("ssh -o StrictHostKeyChecking=no -i {0} ubuntu@{1} "
                                      "'bash -s' < shell_scripts/run_ethermint.sh {2}:{3}".format(
         get_shh_key_file(instance2.key_name),
         instance2.public_ip_address,
         instance1.public_ip_address,
-        ETHERMINT_P2P_PORT))
+        ETHERMINT_P2P_PORT), shell=True)
 
 
 def test_chainshot_creates_snapshots(chainshotter, mock_instances_with_volumes, mockregions):
@@ -155,28 +157,28 @@ def test_attaching_ebs_snapshots_on_thaw(chainshotter, prepare_chainshot, mock_i
                 assert bdm["DeviceName"] == DEFAULT_DEVICE
 
 
-def test_mounting_ebs_and_running_on_thaw(chainshotter, prepare_chainshot, mock_instance, mockossystem, monkeypatch,
+def test_mounting_ebs_and_running_on_thaw(chainshotter, prepare_chainshot, mock_instance, mocksubprocess, monkeypatch,
                                           mockregions):
     # mount has to be done manually since the boto3 interface does not allow to do this
     # For now testing if the ssh command is correct
     chainshot = prepare_chainshot([DEFAULT_REGION])
     instance = mock_instance()
     monkeypatch.setattr(Chainmaker, 'create_ec2s_from_json', MagicMock(return_value=[instance]))
-    mockossystem.reset_mock()
+    mocksubprocess.reset_mock()
     chainshotter.thaw(chainshot)
 
-    args_list = mockossystem.call_args_list
+    args_list = mocksubprocess.call_args_list
     assert len(args_list) == 2
 
     assert args_list[0] == mock.call("ssh -o StrictHostKeyChecking=no -i {0} ubuntu@{1} "
                                      "'bash -s' < shell_scripts/mount_snapshot.sh".format(
         get_shh_key_file(instance.key_name),
-        instance.public_ip_address))
+        instance.public_ip_address), shell=True)
 
     assert args_list[1] == mock.call("ssh -o StrictHostKeyChecking=no -i {0} ubuntu@{1} "
                                      "'bash -s' < shell_scripts/run_ethermint.sh".format(
         get_shh_key_file(instance.key_name),
-        instance.public_ip_address))
+        instance.public_ip_address), shell=True)
 
 
 def test_starting_ethermint_on_thaw(chainshotter):
