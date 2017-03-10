@@ -69,8 +69,8 @@ def _add_volume(instance):
 
 
 class Chainmaker:
-    def __init__(self):
-        pass
+    def __init__(self, num_processes=None):
+        self.num_processes = num_processes
 
     def _create_security_group(self, name, ports, region):
         """
@@ -107,18 +107,19 @@ class Chainmaker:
         "add_volume", "tags" (additional tags)
         :return: a list of instance objects
         """
-        # comment this to run in paralell (see below)
-        instances_ids = []
-        for conf in config:
-            instances_ids.append(_create_instance(conf))
 
-        # uncomment the following to run in parallel, but this fails tests (because of moto)
-        # tried multiprocessing.ThreadPool which is ok with moto but has random errors
-        # so, the default for tests is the sequential version above
-        # pool = multiprocessing.Pool(len(config))
-        # instances_ids = pool.map_async(_create_instance, config).get(600)
-        # pool.close()
-        # pool.join()
+        if self.num_processes is None or self.num_processes == 1:
+            instances_ids = []
+            for conf in config:
+                instances_ids.append(_create_instance(conf))
+        else:
+            # run in parallel, but this fails tests (because of moto), hence is based on an option
+            # tried multiprocessing.ThreadPool which is ok with moto but has random errors
+            # so, the default for tests is the sequential version above
+            pool = multiprocessing.Pool(len(config))
+            instances_ids = pool.map_async(_create_instance, config).get(600)
+            pool.close()
+            pool.join()
 
         ec2s = [boto3.resource('ec2', region_name=instance_config["region"]) for
                 instance_config in config]
@@ -191,7 +192,6 @@ class Chainmaker:
             run_sh_script("shell_scripts/halt_ethermint.sh",
                           instance.key_name,
                           instance.public_ip_address)
-
 
     def create_ethermint_network(self, regions, ethermint_version, master_pub_key, update_salt_roster=False,
                                  name_root="test"):

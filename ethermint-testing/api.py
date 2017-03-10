@@ -6,7 +6,7 @@ import click
 
 from amibuilder import AMIBuilder
 from chainmaker import Chainmaker
-from chainshotter import Chainshotter
+from chainshotter import Chainshotter, RegionInstancePair
 from settings import DEFAULT_FILES_LOCATION
 
 logger = logging.getLogger(__name__)
@@ -16,7 +16,6 @@ logging.basicConfig(level=logging.INFO)
 class CommandEnvironment(object):
     def __init__(self):
         self.chainshotter = Chainshotter()
-        self.chainmaker = Chainmaker()
 
 
 pass_environment = click.make_pass_decorator(CommandEnvironment, ensure=True)
@@ -29,31 +28,35 @@ def ethermint_testing():
 
 @ethermint_testing.command()
 @click.option('--update-roster/--no-update-roster', default=False, help='Update /etc/salt/roster locally?')
-@click.option('--regions', required=True, default=[], type=click.STRING, multiple=True,
+@click.option('--regions', '-r', required=True, default=None, type=click.STRING, multiple=True,
               help='A list of regions; one instance is created per region')
 @click.option('--ethermint-version', default="HEAD", help='The hash of ethermints commit')
 @click.option('--master-pkey-name', required=True, help='')
 @click.option('--name-root', default="test", help='Root of the names of amis to create')
+@click.option('--num-processes', '-n', default=None, type=click.INT,
+              help='specify >1 if you want to run instance creation in parallel using multiprocessing')
 @pass_environment
-def create(env, update_roster, regions, ethermint_version, master_pkey_name, name_root):
+def create(env, update_roster, regions, ethermint_version, master_pkey_name, name_root, num_processes):
     """
     Creates an ethermint network consisting of ethermint nodes
     """
     with open(os.path.join(DEFAULT_FILES_LOCATION, master_pkey_name + '.key.pub'), 'r') as f:
         master_pub_key = f.read()
-    return env.chainmaker.create_ethermint_network(regions, ethermint_version, master_pub_key, update_roster, name_root)
+    chainmaker = Chainmaker(num_processes=num_processes)
+    return chainmaker.create_ethermint_network(regions, ethermint_version, master_pub_key, update_roster, name_root)
 
 
 @ethermint_testing.command()
 @click.option('--name', default="Ethermint-network-chainshot", help='The name of the chainshot')
-@click.option('--instances', required=True, default=[], type=click.STRING,
-              multiple=True, help='The list of ethermint instance objects')
+@click.option('--instances', required=True, default=[], type=(unicode, unicode),
+              multiple=True, help='The list of ethermint instance objects, supplied in "region id" paris')
 @click.option('--output-file-path', default="chainshot.json", help='Output chainshot file path (json)')
 @pass_environment
 def chainshot(env, name, instances, output_file_path):
     """
     Allows to create a chainshot of a network consisting of multiple ec2 instances
     """
+    instances = [RegionInstancePair(*instance) for instance in instances]
     chainshot_data = env.chainshotter.chainshot(name, instances)
     with open(output_file_path, 'w') as f:
         json.dump(chainshot_data, f, indent=2)
