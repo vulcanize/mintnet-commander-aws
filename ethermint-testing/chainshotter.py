@@ -28,9 +28,15 @@ class Chainshotter:
             "instances": []
         }
 
+        instances = [boto3.resource('ec2', region_name=region).Instance(instance_id) for
+                     instance_id, region in instances_ids_map.items()]
+
+        Chainmaker._halt_ethermint(instances)
+
         for instance_id, region in instances_ids_map.items():
             ec2 = boto3.resource('ec2', region_name=region)
             instance = ec2.Instance(instance_id)
+
             volumes_collection = instance.volumes.filter(Filters=
             [
                 {'Name': 'tag-key', 'Values': ["Name"]},
@@ -39,33 +45,8 @@ class Chainshotter:
             )
             volume = list(volumes_collection)[0]
 
-            logger.info("Creating snapshot of volume {} of instance {}".format(volume.id, instance.id))
+            snapshot_info = self._snapshot(instance, volume, ec2)
 
-            snapshot = ec2.create_snapshot(VolumeId=volume.id, Description='ethermint-backup')
-            snapshot.wait_until_completed()
-            logger.info("Created snapshot {}".format(snapshot.id))
-
-            snapshot_info = {
-                "instance": {
-                    "id": instance.id,
-                    "region": get_region_name(instance.placement["AvailabilityZone"]),
-                    "availablility_zone": instance.placement["AvailabilityZone"],
-                    "ami": instance.image_id,
-                    "tags": instance.tags,
-                    "vpc_id": instance.vpc_id,
-                    "security_groups": [group["GroupName"] for group in instance.security_groups],
-                    "key_name": instance.key_name,
-                },
-                "snapshot": {
-                    # are those accurate?
-                    # NOTE if we want to repeat chainshot() - thaw() multiple times,
-                    # we need to save the launch time in S3, so that it is not reset each time an instance is run
-                    "from": instance.launch_time.isoformat(),
-                    "to": snapshot.start_time.isoformat(),
-
-                    "id": snapshot.id
-                }
-            }
             results["instances"].append(snapshot_info)
 
             if clean_up:
@@ -75,10 +56,42 @@ class Chainshotter:
                 volume.delete()
                 instance.terminate()
 
+        Chainmaker._run_ethermint(instances)
+
         logger.info("Finished chainshotting, the results:")
         logger.info(results)
 
         return results
+
+    def _snapshot(self, instance, volume, ec2):
+        logger.info("Creating snapshot of volume {} of instance {}".format(volume.id, instance.id))
+
+        snapshot = ec2.create_snapshot(VolumeId=volume.id, Description='ethermint-backup')
+        snapshot.wait_until_completed()
+        logger.info("Created snapshot {}".format(snapshot.id))
+
+        snapshot_info = {
+            "instance": {
+                "id": instance.id,
+                "region": get_region_name(instance.placement["AvailabilityZone"]),
+                "availablility_zone": instance.placement["AvailabilityZone"],
+                "ami": instance.image_id,
+                "tags": instance.tags,
+                "vpc_id": instance.vpc_id,
+                "security_groups": [group["GroupName"] for group in instance.security_groups],
+                "key_name": instance.key_name,
+            },
+            "snapshot": {
+                # are those accurate?
+                # NOTE if we want to repeat chainshot() - thaw() multiple times,
+                # we need to save the launch time in S3, so that it is not reset each time an instance is run
+                "from": instance.launch_time.isoformat(),
+                "to": snapshot.start_time.isoformat(),
+
+                "id": snapshot.id
+            }
+        }
+        return snapshot_info
 
     def thaw(self, chainshot):
         """

@@ -4,14 +4,24 @@ from datetime import datetime
 import boto3
 import pytest
 from mock import MagicMock
+from moto import mock_ec2
 
 from amibuilder import AMIBuilder
 from settings import DEFAULT_REGION, DEFAULT_INSTANCE_TYPE
+
+SECURITY_GROUP_NAME = "securitygroup"
 
 
 @pytest.fixture()
 def mockami():
     return "ami-90b01686"
+
+
+@pytest.fixture()
+def moto():
+    mock_ec2().start()
+    yield None
+    mock_ec2().stop()
 
 
 @pytest.fixture()
@@ -24,6 +34,20 @@ def mockamibuilder(mockami):
     amibuilder = MagicMock(AMIBuilder)
     amibuilder().create_ami = MagicMock(return_value=mockami)
     return amibuilder
+
+
+@pytest.fixture()
+def mock_security_group(moto):
+	def ret(region):
+        ec2 = boto3.resource('ec2', region_name=region)
+        security_group_name = mock_instance_data["security_group_name"]
+        groups = list(ec2.security_groups.filter(GroupNames=[security_group_name]))
+        if len(groups) > 0:
+            g = groups[0]
+        else:
+            g = ec2.create_security_group(GroupName=security_group_name, Description="test group")
+		return g
+	return ret
 
 
 @pytest.fixture()
@@ -48,7 +72,7 @@ def mock_instance_data():
                 "Value": "testinstance"
             }
         ],
-        "security_group_name": "securitygroup",
+        "security_group_name": SECURITY_GROUP_NAME,
         "key_name": "Key",
         "launch_time": datetime.now()
     }
@@ -56,22 +80,15 @@ def mock_instance_data():
 
 
 @pytest.fixture()
-def mock_instance(mock_instance_data):
+def mock_instance(mock_instance_data, mock_security_group, moto):
     def _mock_instance(region=DEFAULT_REGION):
         ec2 = boto3.resource('ec2', region_name=region)
-
-        security_group_name = mock_instance_data["security_group_name"]
-        groups = list(ec2.security_groups.filter(GroupNames=[security_group_name]))
-        if len(groups) > 0:
-            g = groups[0]
-        else:
-            g = ec2.create_security_group(GroupName=security_group_name, Description="test group")
 
         instance = ec2.create_instances(ImageId=mock_instance_data["image_id"],
                                         InstanceType=DEFAULT_INSTANCE_TYPE,
                                         MinCount=1,
                                         MaxCount=1,
-                                        SecurityGroupIds=[g.id],
+                                        SecurityGroupIds=[mock_security_groups(region).id],
                                         KeyName=mock_instance_data["key_name"])[0]
         instance.create_tags(Tags=mock_instance_data["tags"])
         assert len(list(instance.volumes.all())) == 1
@@ -81,7 +98,7 @@ def mock_instance(mock_instance_data):
 
 
 @pytest.fixture()
-def mock_instances_in_regions(mock_instance_data):
+def mock_instances_in_regions(mock_instance_data, moto):
     def _mock_instances(regions):
         instances = {}
 
@@ -109,7 +126,7 @@ def mock_instances_in_regions(mock_instance_data):
 
 
 @pytest.fixture()
-def mock_instances_with_volumes(mock_instances_in_regions):
+def mock_instances_with_volumes(mock_instances_in_regions, moto):
     def _mock_instances_with_volumes(regions):
         instances = mock_instances_in_regions(regions)
         for instance_id, region in instances.items():
@@ -128,7 +145,7 @@ def add_volume_to_instance(instance, region):
 
 
 @pytest.fixture()
-def mock_instance_with_volume(mock_instance):
+def mock_instance_with_volume(mock_instance, moto):
     def _mock_instance_with_volume():
         instance = mock_instance()
         add_volume_to_instance(instance, DEFAULT_REGION)

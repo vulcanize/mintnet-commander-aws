@@ -5,7 +5,6 @@ from os.path import join, dirname
 import boto3
 import pytest
 import yaml
-from moto import mock_ec2
 
 from chainmaker import Chainmaker
 from settings import DEFAULT_DEVICE, DEFAULT_PORTS
@@ -29,7 +28,7 @@ def fake_ethermint_files(tmp_dir):
 
 
 @pytest.fixture()
-def chainmaker(monkeypatch, mockossystem, mockamibuilder, tmp_dir, mockregions, fake_ethermint_files):
+def chainmaker(monkeypatch, mockossystem, mockamibuilder, tmp_dir, mockregions, fake_ethermint_files, moto):
     monkeypatch.setattr(os, 'system', mockossystem)
     monkeypatch.setattr('utils.DEFAULT_FILES_LOCATION', tmp_dir)
     monkeypatch.setattr('chainmaker.DEFAULT_FILES_LOCATION', tmp_dir)
@@ -38,7 +37,6 @@ def chainmaker(monkeypatch, mockossystem, mockamibuilder, tmp_dir, mockregions, 
     return Chainmaker()
 
 
-@mock_ec2
 def test_creating_ethermint_network(chainmaker, mockami, mockregions):
     nodes = chainmaker.create_ethermint_network(mockregions, "HEAD", "master_pub_key")
 
@@ -57,12 +55,10 @@ def test_creating_ethermint_network(chainmaker, mockami, mockregions):
     # TODO check if image has correct tags?
 
 
-@mock_ec2
 def test_creating_ethermint_network_failures(chainmaker):
     pass
 
 
-@mock_ec2
 def test_ethermint_network_security_group(chainmaker, mockregions):
     # test if nodes in the network can talk to each other (are in the same security group)
     nodes = chainmaker.create_ethermint_network(mockregions, "HEAD", "master_pub_key")
@@ -98,7 +94,6 @@ def test_ethermint_network_uses_existing_AMIs_when_exist(chainmaker, mockregions
     mockamibuilder().create_ami.assert_not_called()
 
 
-@mock_ec2
 def test_ethermint_network_find_AMI(chainmaker, mockregions, mockamibuilder, create_mock_amis, fake_ethermint_files):
     ethermint_version = "HEAD"
 
@@ -126,7 +121,6 @@ def test_ethermint_network_attaches_volumes(chainmaker, mockregions):
         assert found_our_volume
 
 
-@mock_ec2
 def test_ethermint_network_mounts_volumes(chainmaker, mockregions, mockossystem):
     # mount has to be done manually since the boto3 interface does not allow to do this
     # for now, testing if ssh command is correct
@@ -138,7 +132,6 @@ def test_ethermint_network_mounts_volumes(chainmaker, mockregions, mockossystem)
             get_shh_key_file(node.key_name), node.public_ip_address))
 
 
-@mock_ec2
 def test_ethermint_network_update_roster(chainmaker, mockregions, mockossystem):
     nodes = chainmaker.create_ethermint_network(mockregions, "HEAD", "master_pub_key", update_salt_roster=True)
     nodes_ips = [node.public_ip_address for node in nodes]

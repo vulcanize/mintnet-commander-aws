@@ -5,12 +5,13 @@ import mock
 import pytest
 from botocore.exceptions import ClientError
 from mock import MagicMock
-from moto import mock_ec2
 
 from chainmaker import Chainmaker
 from chainshotter import Chainshotter
 from settings import DEFAULT_REGION, DEFAULT_DEVICE
 from utils import get_shh_key_file
+
+ETHERMINT_P2P_PORT = 46656
 
 
 @pytest.fixture()
@@ -21,7 +22,7 @@ def chainshotter(monkeypatch, mockossystem):
 
 
 @pytest.fixture()
-def prepare_chainshot():
+def prepare_chainshot(moto):
     def _prepare_chainshot(regions):
         instances_list = []
         for region in regions:
@@ -41,7 +42,33 @@ def prepare_chainshot():
     return _prepare_chainshot
 
 
-@mock_ec2
+def test_chainshot_halts_restarts(chainshotter, mock_instance_with_volume, mockossystem):
+    # 2 instances to check if halt and start are in right order
+    instance1 = mock_instance_with_volume()
+    instance2 = mock_instance_with_volume()
+    chainshotter.chainshot("Test", [instance1.id, instance2.id])
+
+    args_list = mockossystem.call_args_list
+    assert len(args_list) == 4
+
+    assert args_list[0:2] == [mock.call("ssh -o StrictHostKeyChecking=no -i {0} ubuntu@{1} "
+                                        "'bash -s' < shell_scripts/halt_ethermint.sh".format(
+        get_shh_key_file(instance.key_name),
+        instance.public_ip_address)) for instance in [instance1, instance2]]
+
+    assert args_list[2] == mock.call("ssh -o StrictHostKeyChecking=no -i {0} ubuntu@{1} "
+                                     "'bash -s' < shell_scripts/run_ethermint.sh".format(
+        get_shh_key_file(instance1.key_name),
+        instance1.public_ip_address))
+
+    assert args_list[3] == mock.call("ssh -o StrictHostKeyChecking=no -i {0} ubuntu@{1} "
+                                     "'bash -s' < shell_scripts/run_ethermint.sh {2}:{3}".format(
+        get_shh_key_file(instance2.key_name),
+        instance2.public_ip_address,
+        instance1.public_ip_address,
+        ETHERMINT_P2P_PORT))
+
+
 def test_chainshot_creates_snapshots(chainshotter, mock_instances_with_volumes, mockregions):
     instances = mock_instances_with_volumes(mockregions)
     chainshotter.chainshot("Test", instances)
@@ -52,7 +79,6 @@ def test_chainshot_creates_snapshots(chainshotter, mock_instances_with_volumes, 
     assert total_snapshots == len(instances)
 
 
-@mock_ec2
 def test_chainshot_return_data(chainshotter, mock_instances_with_volumes, mockregions, mock_instance_data):
     instances = mock_instances_with_volumes(mockregions)
     chainshot_data = chainshotter.chainshot("Test", instances)
@@ -80,7 +106,6 @@ def test_chainshot_return_data(chainshotter, mock_instances_with_volumes, mockre
         # TODO rest of fields: instnace: vpc_id, availablility_zone, id; snapshot: from, to
 
 
-@mock_ec2
 def test_invalid_chainshots(chainshotter, mock_instance):
     # volumes filter returns empty (no ethermint_volume)
     instances = {mock_instance().id: DEFAULT_REGION}
@@ -91,7 +116,6 @@ def test_invalid_chainshots(chainshotter, mock_instance):
     pass
 
 
-@mock_ec2
 def test_chainshot_cleanup(chainshotter, mock_instance_with_volume, mockossystem):
     pass
 
@@ -133,7 +157,6 @@ def test_attaching_ebs_snapshots_on_thaw(chainshotter, prepare_chainshot, mock_i
                 assert bdm["DeviceName"] == DEFAULT_DEVICE
 
 
-@mock_ec2
 def test_mounting_ebs_and_running_on_thaw(chainshotter, prepare_chainshot, mock_instance, mockossystem, monkeypatch,
                                           mockregions):
     # mount has to be done manually since the boto3 interface does not allow to do this
@@ -158,13 +181,11 @@ def test_mounting_ebs_and_running_on_thaw(chainshotter, prepare_chainshot, mock_
         instance.public_ip_address))
 
 
-@mock_ec2
 def test_starting_ethermint_on_thaw(chainshotter):
     # How?
     pass
 
 
-@mock_ec2
 def test_invalid_thaws(chainshotter, prepare_chainshot):
     # InvalidSnapshot
     chainshot = prepare_chainshot([DEFAULT_REGION])
