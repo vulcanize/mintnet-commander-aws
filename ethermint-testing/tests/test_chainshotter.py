@@ -10,7 +10,7 @@ from moto import mock_ec2
 from chainmaker import Chainmaker
 from chainshotter import Chainshotter
 from settings import DEFAULT_REGION, DEFAULT_DEVICE
-from utils import get_region_name, get_shh_key_file
+from utils import get_shh_key_file
 
 
 @pytest.fixture()
@@ -42,36 +42,42 @@ def prepare_chainshot():
 
 
 @mock_ec2
-def test_chainshot_creates_snapshots(chainshotter, mock_instance_with_volume):
-    instances = {mock_instance_with_volume().id: DEFAULT_REGION}
+def test_chainshot_creates_snapshots(chainshotter, mock_instances_with_volumes, mockregions):
+    instances = mock_instances_with_volumes(mockregions)
     chainshotter.chainshot("Test", instances)
-    ec2_client = boto3.client('ec2', region_name=DEFAULT_REGION)
-    all_snaps = ec2_client.describe_snapshots(Filters=[{'Name': 'description', 'Values': ['ethermint-backup']}])
-    assert len(all_snaps) - 1 == len(instances)  # not counting the default Created by CreateImage snapshot
+    total_snapshots = 0
+    for region in set(mockregions):
+        ec2_client = boto3.client('ec2', region_name=region)
+        total_snapshots += len(ec2_client.describe_snapshots(Filters=[{'Name': 'description', 'Values': ['ethermint-backup']}]))
+    assert total_snapshots == len(instances)
 
 
 @mock_ec2
-def test_chainshot_return_data(chainshotter, mock_instance_with_volume, mock_instance_data):
-    instances = {mock_instance_with_volume().id: DEFAULT_REGION}
+def test_chainshot_return_data(chainshotter, mock_instances_with_volumes, mockregions, mock_instance_data):
+    instances = mock_instances_with_volumes(mockregions)
     chainshot_data = chainshotter.chainshot("Test", instances)
-    ec2 = boto3.resource('ec2', region_name=DEFAULT_REGION)
-    ec2_client = boto3.client('ec2', region_name=DEFAULT_REGION)
-    all_snaps = ec2_client.describe_snapshots(Filters=[{'Name': 'description', 'Values': ['ethermint-backup']}])
-    all_snaps = [ec2.Snapshot(snapshot["SnapshotId"]) for snapshot in all_snaps["Snapshots"]]
-    assert len(all_snaps) == 1
-    snapshot = all_snaps[0]
 
-    for data in chainshot_data["instances"]:
-        assert data["snapshot"]["id"] == snapshot.id
-        # assert data["snapshot"]["from"] == instance.launch_time.isoformtat()
-        assert data["snapshot"]["to"] == snapshot.start_time.isoformat()
+    snapshots_in_regions = {}
+    for region in set(mockregions):
+        ec2_client = boto3.client('ec2', region_name=region)
+        all_snaps = ec2_client.describe_snapshots(Filters=[{'Name': 'description', 'Values': ['ethermint-backup']}])
+        all_snaps = [snapshot["SnapshotId"] for snapshot in all_snaps["Snapshots"]]
+        snapshots_in_regions[region] = all_snaps
+        assert len(all_snaps) == mockregions.count(region)
 
-        # left: vpc_id, id
-        assert get_region_name(data["instance"]["region"]) == DEFAULT_REGION
+    for i, data in enumerate(chainshot_data["instances"]):
+        region = data["instance"]["region"]
+
+        assert region in mockregions
+        del mockregions[mockregions.index(region)]  # make sure there are exactly as many as should be
+
+        assert data["snapshot"]["id"] in snapshots_in_regions[region]
+
         assert data["instance"]["ami"] == mock_instance_data["image_id"]
         assert data["instance"]["tags"] == mock_instance_data["tags"]
         assert data["instance"]["key_name"] == mock_instance_data["key_name"]
         assert data["instance"]["security_groups"][0] == mock_instance_data["security_group_name"]
+        # TODO rest of fields: instnace: vpc_id, availablility_zone, id; snapshot: from, to
 
 
 @mock_ec2
@@ -83,6 +89,23 @@ def test_invalid_chainshots(chainshotter, mock_instance):
 
     # UnauthorizedOperation when creating a snapshot - how to simulate?
     pass
+
+
+@mock_ec2
+def test_chainshot_cleanup(chainshotter, mock_instance_with_volume, mockossystem):
+    pass
+    # instance = mock_instance_with_volume()
+    # instances = {instance.id: DEFAULT_REGION}
+    # chainshotter.chainshot("Test", instances, clean_up=True)
+    #
+    # mockossystem.assert_called_once_with("ssh -o StrictHostKeyChecking=no -i {0} ubuntu@{1} "
+    #                                      "'bash -s' < shell_scripts/unmount_new_volume.sh".format(
+    #     get_shh_key_file(instance.key_name),
+    #     instance.public_ip_address))
+    #
+    # # TODO test detaching and deleting volume here
+    #
+    # assert instance.state["Name"] == 'terminated'
 
 
 @mock_ec2

@@ -77,15 +77,58 @@ def mock_instance(mock_instance_data):
 
 
 @pytest.fixture()
+def mock_instances_in_regions(mock_instance_data):
+    def _mock_instances(regions):
+        instances = {}
+
+        sec_groups = {}
+        security_group_name = mock_instance_data["security_group_name"]
+        for region in set(regions):
+            ec2 = boto3.resource('ec2', region_name=region)
+            g = ec2.create_security_group(GroupName=security_group_name, Description="test group")
+            sec_groups[region] = g.id
+
+        for region in regions:
+            ec2 = boto3.resource('ec2', region_name=region)
+            instance = ec2.create_instances(ImageId=mock_instance_data["image_id"],
+                                            InstanceType=DEFAULT_INSTANCE_TYPE,
+                                            MinCount=1,
+                                            MaxCount=1,
+                                            SecurityGroupIds=[sec_groups[region]],
+                                            KeyName=mock_instance_data["key_name"])[0]
+            instance.create_tags(Tags=mock_instance_data["tags"])
+            assert len(list(instance.volumes.all())) == 1
+            instances[instance.id] = region
+        return instances
+
+    return _mock_instances
+
+
+@pytest.fixture()
+def mock_instances_with_volumes(mock_instances_in_regions):
+    def _mock_instances_with_volumes(regions):
+        instances = mock_instances_in_regions(regions)
+        for instance_id, region in instances.items():
+            ec2 = boto3.resource('ec2', region_name=region)
+            instance = ec2.Instance(instance_id)
+            add_volume_to_instance(instance, region)
+        return instances
+    return _mock_instances_with_volumes
+
+
+def add_volume_to_instance(instance, region):
+    ec2 = boto3.resource('ec2', region_name=region)
+    volume = ec2.create_volume(Size=1, AvailabilityZone=region)
+    volume.create_tags(Tags=[{'Key': 'Name', 'Value': 'ethermint_volume'}])
+    volume.attach_to_instance(InstanceId=instance.id, Device="/device")
+
+
+@pytest.fixture()
 def mock_instance_with_volume(mock_instance):
     def _mock_instance_with_volume():
         instance = mock_instance()
-        ec2 = boto3.resource('ec2', region_name=DEFAULT_REGION)
-        volume = ec2.create_volume(Size=1, AvailabilityZone=DEFAULT_REGION)
-        volume.create_tags(Tags=[{'Key': 'Name', 'Value': 'ethermint_volume'}])
-        volume.attach_to_instance(InstanceId=instance.id, Device="/device")
+        add_volume_to_instance(instance, DEFAULT_REGION)
         return instance
-
     return _mock_instance_with_volume
 
 
@@ -103,3 +146,8 @@ aws_secret_access_key = AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 @pytest.fixture()
 def tmp_dir(tmpdir):
     return str(tmpdir.mkdir("files"))
+
+
+@pytest.fixture()
+def mockregions():
+    return ["ap-northeast-1", "ap-northeast-1", "ap-northeast-1", "eu-central-1", "us-west-1", "us-west-1"]

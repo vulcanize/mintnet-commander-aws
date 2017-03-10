@@ -38,11 +38,6 @@ def chainmaker(monkeypatch, mockossystem, mockamibuilder, tmp_dir, mockregions, 
     return Chainmaker()
 
 
-@pytest.fixture()
-def mockregions():
-    return ["ap-northeast-1", "ap-northeast-1", "ap-northeast-1", "eu-central-1", "us-west-1", "us-west-1"]
-
-
 @mock_ec2
 def test_creating_ethermint_network(chainmaker, mockami, mockregions):
     nodes = chainmaker.create_ethermint_network(mockregions, "HEAD", "master_pub_key")

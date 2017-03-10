@@ -3,7 +3,7 @@ import logging
 import boto3
 
 from chainmaker import Chainmaker
-from settings import DEFAULT_DEVICE, DEFAULT_REGION
+from settings import DEFAULT_DEVICE
 from utils import run_sh_script, get_region_name
 from waiting_for_ec2 import wait_for_detached, wait_for_available_volume
 

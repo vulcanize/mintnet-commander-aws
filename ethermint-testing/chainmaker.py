@@ -120,7 +120,7 @@ class Chainmaker:
         # pool.close()
         # pool.join()
 
-        ec2s = [boto3.resource('ec2', region_name=get_region_name(instance_config["region"])) for
+        ec2s = [boto3.resource('ec2', region_name=instance_config["region"]) for
                 instance_config in config]
 
         instances = [ec2.Instance(instace_id) for ec2, instace_id in zip(ec2s, instances_ids)]
@@ -187,6 +187,9 @@ class Chainmaker:
                                  name_root="test"):
         """
         Creates an ethermint network consisting of multiple ethermint nodes
+        :param master_pub_key: master public key to be added to authorized keys
+        :param ethermint_version: the hash of the ethermint commit
+        :param name_root: the base of the AMI name
         :param regions: a list of regions where instances will be run; we run 1 instance per region
         :param update_salt_roster: indicates if the system /etc/salt/roster file should be updated
         :return: a list of all other instances created
