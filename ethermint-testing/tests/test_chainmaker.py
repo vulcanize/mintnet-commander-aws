@@ -74,7 +74,6 @@ def test_ethermint_network_security_group(chainmaker, mockregions):
         assert sorted(security_group_ports) == sorted(DEFAULT_PORTS)
 
 
-@mock_ec2
 def test_ethermint_network_creates_AMIs(chainmaker, mockregions, mockamibuilder):
     ethermint_version = "HEAD"
     chainmaker.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
@@ -84,7 +83,6 @@ def test_ethermint_network_creates_AMIs(chainmaker, mockregions, mockamibuilder)
         mockamibuilder().create_ami.assert_any_call(ethermint_version, "test_ethermint_ami-ssh", regions=[region])
 
 
-@mock_ec2
 def test_ethermint_network_uses_existing_AMIs_when_exist(chainmaker, mockregions, mockamibuilder, create_mock_amis):
     ethermint_version = "HEAD"
 
@@ -107,7 +105,6 @@ def test_ethermint_network_find_AMI(chainmaker, mockregions, mockamibuilder, cre
     mockamibuilder().create_ami.called_once_with(ethermint_version, "test_ethermint_ami-ssh", regions=[new_region])
 
 
-@mock_ec2
 def test_ethermint_network_attaches_volumes(chainmaker, mockregions):
     nodes = chainmaker.create_ethermint_network(mockregions, "HEAD", "master_pub_key")
 
@@ -152,7 +149,6 @@ def test_ethermint_network_update_roster(chainmaker, mockregions, mockossystem):
         assert contents[c]['host'] in nodes_ips
 
 
-@mock_ec2
 def test_ethermint_network_prepares_for_ethermint(chainmaker, mockregions, mockossystem, tmp_dir):
     nodes = chainmaker.create_ethermint_network(mockregions, "HEAD", "master_pub_key")
     ethermint_files_location = os.path.join(tmp_dir, "ethermint")
@@ -173,7 +169,6 @@ def test_ethermint_network_prepares_for_ethermint(chainmaker, mockregions, mocko
             node.public_ip_address))
 
 
-@mock_ec2
 def test_ethermint_network_runs_ethermint(chainmaker, mockregions, mockossystem):
     nodes = chainmaker.create_ethermint_network(mockregions, "HEAD", "master_pub_key")
 

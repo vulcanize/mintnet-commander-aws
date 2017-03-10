@@ -37,8 +37,8 @@ def mockamibuilder(mockami):
 
 
 @pytest.fixture()
-def mock_security_group(moto):
-	def ret(region):
+def mock_security_group(moto, mock_instance_data):
+    def ret(region):
         ec2 = boto3.resource('ec2', region_name=region)
         security_group_name = mock_instance_data["security_group_name"]
         groups = list(ec2.security_groups.filter(GroupNames=[security_group_name]))
@@ -46,8 +46,8 @@ def mock_security_group(moto):
             g = groups[0]
         else:
             g = ec2.create_security_group(GroupName=security_group_name, Description="test group")
-		return g
-	return ret
+        return g
+    return ret
 
 
 @pytest.fixture()
@@ -59,6 +59,7 @@ def create_mock_amis(mockami):
             instance = ec2.create_instances(ImageId=mockami, MinCount=1, MaxCount=1)[0]
             ami = ec2_client.create_image(InstanceId=instance.id, Name=ami_name)
             ec2.Image(ami["ImageId"]).create_tags(Tags=[{'Key': 'Ethermint', "Value": ethermint_version}])
+
     return _create
 
 
@@ -88,7 +89,7 @@ def mock_instance(mock_instance_data, mock_security_group, moto):
                                         InstanceType=DEFAULT_INSTANCE_TYPE,
                                         MinCount=1,
                                         MaxCount=1,
-                                        SecurityGroupIds=[mock_security_groups(region).id],
+                                        SecurityGroupIds=[mock_security_group(region).id],
                                         KeyName=mock_instance_data["key_name"])[0]
         instance.create_tags(Tags=mock_instance_data["tags"])
         assert len(list(instance.volumes.all())) == 1
@@ -134,6 +135,7 @@ def mock_instances_with_volumes(mock_instances_in_regions, moto):
             instance = ec2.Instance(instance_id)
             add_volume_to_instance(instance, region)
         return instances
+
     return _mock_instances_with_volumes
 
 
@@ -150,6 +152,7 @@ def mock_instance_with_volume(mock_instance, moto):
         instance = mock_instance()
         add_volume_to_instance(instance, DEFAULT_REGION)
         return instance
+
     return _mock_instance_with_volume
 
 

@@ -46,7 +46,7 @@ def test_chainshot_halts_restarts(chainshotter, mock_instance_with_volume, mocko
     # 2 instances to check if halt and start are in right order
     instance1 = mock_instance_with_volume()
     instance2 = mock_instance_with_volume()
-    chainshotter.chainshot("Test", [instance1.id, instance2.id])
+    chainshotter.chainshot("Test", {instance1.id: DEFAULT_REGION, instance2.id: DEFAULT_REGION})
 
     args_list = mockossystem.call_args_list
     assert len(args_list) == 4
@@ -120,7 +120,6 @@ def test_chainshot_cleanup(chainshotter, mock_instance_with_volume, mockossystem
     pass
 
 
-@mock_ec2
 def test_starting_instances_on_thaw(chainshotter, prepare_chainshot, monkeypatch, mock_instance):
     # TODO
     pass
@@ -137,7 +136,6 @@ def test_starting_instances_on_thaw(chainshotter, prepare_chainshot, monkeypatch
     #     Chainmaker.create_ec2s_from_json.assert_has_calls([c["instance"]])
 
 
-@mock_ec2
 def test_attaching_ebs_snapshots_on_thaw(chainshotter, prepare_chainshot, mock_instance,
                                                                 monkeypatch, mockregions):
     chainshot = prepare_chainshot(mockregions)

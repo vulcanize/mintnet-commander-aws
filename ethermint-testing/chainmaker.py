@@ -195,7 +195,6 @@ class Chainmaker:
 
     def create_ethermint_network(self, regions, ethermint_version, master_pub_key, update_salt_roster=False,
                                  name_root="test"):
-    def create_ethermint_network(self, ethermint_nodes_count, ethermint_node_ami, update_salt_roster=False):
         """
         Creates an ethermint network consisting of multiple ethermint nodes
         :param master_pub_key: master public key to be added to authorized keys
