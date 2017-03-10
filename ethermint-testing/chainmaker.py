@@ -107,9 +107,18 @@ class Chainmaker:
         "add_volume", "tags" (additional tags)
         :return: a list of instance objects
         """
-        pool = multiprocessing.Pool(len(config))
+        # comment this to run in paralell (see below)
+        instances_ids = []
+        for conf in config:
+            instances_ids.append(_create_instance(conf))
 
-        instances_ids = pool.map_async(_create_instance, config).get(600)
+        # uncomment the following to run in parallel, but this fails tests (because of moto)
+        # tried multiprocessing.ThreadPool which is ok with moto but has random errors
+        # so, the default for tests is the sequential version above
+        # pool = multiprocessing.Pool(len(config))
+        # instances_ids = pool.map_async(_create_instance, config).get(600)
+        # pool.close()
+        # pool.join()
 
         ec2s = [boto3.resource('ec2', region_name=get_region_name(instance_config["region"])) for
                 instance_config in config]
@@ -131,23 +140,24 @@ class Chainmaker:
 
         os.system("shell_scripts/copy_roster.sh {}".format(roster_path))
 
-    def _prepare_ethermint(self, minion_instances):
+    @staticmethod
+    def _prepare_ethermint(minion_instances):
         ethermint_files_location = os.path.join(DEFAULT_FILES_LOCATION, "ethermint")
         ethermint_genesis = os.path.join(ethermint_files_location, "data", "genesis.json")
         prepare_validators(len(minion_instances), ethermint_files_location)
         fill_validators(len(minion_instances), ethermint_genesis, ethermint_genesis, ethermint_files_location)
 
-        for instance in minion_instances:
+        for i, instance in enumerate(minion_instances):
+            logger.info("Preparing ethermint on instance ID: {}".format(instance.id))
             run_sh_script("shell_scripts/prepare_ethermint_env.sh", instance.key_name, instance.public_ip_address)
 
+            # copy the pre-inited chain data
+            # FIXME: better to init on the remote host using remote ethermint?
+            # this could only upload the genesis.json
             os.system(
                 "scp -o StrictHostKeyChecking=no -C -i {} -r {} ubuntu@{}:/ethermint".format(
                     get_shh_key_file(instance.key_name), os.path.join(ethermint_files_location, "data"),
                     instance.public_ip_address))
-
-        first_seed = None
-        for i, instance in enumerate(minion_instances):
-            logger.info("Running ethermint on instance ID: {}".format(instance.id))
 
             # copy the validator file
             validator_filename = "priv_validator.json.{}".format(i + 1)
@@ -155,6 +165,12 @@ class Chainmaker:
             os.system(
                 "scp -o StrictHostKeyChecking=no -C -i {} {} ubuntu@{}:/ethermint/data/priv_validator.json".format(
                     get_shh_key_file(instance.key_name), src_validator_path, instance.public_ip_address))
+
+    @staticmethod
+    def _run_ethermint(minion_instances):
+        first_seed = None
+        for i, instance in enumerate(minion_instances):
+            logger.info("Running ethermint on instance ID: {}".format(instance.id))
 
             # run ethermint
             if first_seed is None:
@@ -229,6 +245,7 @@ class Chainmaker:
         if update_salt_roster:
             self._update_salt(nodes)
         self._prepare_ethermint(nodes)
+        self._run_ethermint(nodes)
 
         for node in nodes:
             logger.info("Ethermint instance ID: {} in {}".format(node.id, node.placement["AvailabilityZone"]))
