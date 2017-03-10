@@ -200,8 +200,8 @@ def test_isalive_commands(chainmaker, mocksubprocess, mockregions):
     nodes = chainmaker.create_ethermint_network(mockregions, "HEAD", "master_pub_key")
 
     mocksubprocess.reset_mock()
-    mocksubprocess.return_value = ["a", "b"]
-    chainmaker.isalive(RegionInstancePair(mockregions[0], nodes[0].id))
+    mocksubprocess.side_effect = ["a", "b"]
+    result = chainmaker.isalive(RegionInstancePair(mockregions[0], nodes[0].id))
 
     call_args = mocksubprocess.call_args_list
     assert len(call_args) == 2
@@ -217,3 +217,15 @@ def test_isalive_commands(chainmaker, mocksubprocess, mockregions):
             nodes[0].public_ip_address),
             shell=True),
     ]
+
+    # make sure the returned value signals "alive"
+    assert result
+
+
+def test_isalive_dead(chainmaker, mocksubprocess, mockregions):
+    nodes = chainmaker.create_ethermint_network(mockregions, "HEAD", "master_pub_key")
+
+    mocksubprocess.side_effect = ["a", "a"]  # same output
+    result = chainmaker.isalive(RegionInstancePair(mockregions[0], nodes[0].id))
+
+    assert not result
