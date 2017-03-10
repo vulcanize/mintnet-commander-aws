@@ -5,12 +5,13 @@ import mock
 import pytest
 from botocore.exceptions import ClientError
 from mock import MagicMock
-from moto import mock_ec2
 
 from chainmaker import Chainmaker
 from chainshotter import Chainshotter
 from settings import DEFAULT_REGION, DEFAULT_DEVICE
 from utils import get_region_name, get_shh_key_file
+
+ETHERMINT_P2P_PORT = 46656
 
 
 @pytest.fixture()
@@ -21,7 +22,7 @@ def chainshotter(monkeypatch, mockossystem):
 
 
 @pytest.fixture()
-def prepare_chainshot():
+def prepare_chainshot(moto):
     def _prepare_chainshot():
         ec2 = boto3.resource('ec2', region_name=DEFAULT_REGION)
         volume = ec2.create_volume(Size=1, AvailabilityZone=DEFAULT_REGION)
@@ -41,7 +42,33 @@ def prepare_chainshot():
     return _prepare_chainshot
 
 
-@mock_ec2
+def test_chainshot_halts_restarts(chainshotter, mock_instance_with_volume, mockossystem):
+    # 2 instances to check if halt and start are in right order
+    instance1 = mock_instance_with_volume()
+    instance2 = mock_instance_with_volume()
+    chainshotter.chainshot("Test", [instance1.id, instance2.id])
+
+    args_list = mockossystem.call_args_list
+    assert len(args_list) == 4
+
+    assert args_list[0:2] == [mock.call("ssh -o StrictHostKeyChecking=no -i {0} ubuntu@{1} "
+                                        "'bash -s' < shell_scripts/halt_ethermint.sh".format(
+        get_shh_key_file(instance.key_name),
+        instance.public_ip_address)) for instance in [instance1, instance2]]
+
+    assert args_list[2] == mock.call("ssh -o StrictHostKeyChecking=no -i {0} ubuntu@{1} "
+                                     "'bash -s' < shell_scripts/run_ethermint.sh".format(
+        get_shh_key_file(instance1.key_name),
+        instance1.public_ip_address))
+
+    assert args_list[3] == mock.call("ssh -o StrictHostKeyChecking=no -i {0} ubuntu@{1} "
+                                     "'bash -s' < shell_scripts/run_ethermint.sh {2}:{3}".format(
+        get_shh_key_file(instance2.key_name),
+        instance2.public_ip_address,
+        instance1.public_ip_address,
+        ETHERMINT_P2P_PORT))
+
+
 def test_chainshot_creates_snapshots(chainshotter, mock_instance_with_volume):
     instances = [mock_instance_with_volume().id]
     chainshotter.chainshot("Test", instances)
@@ -50,7 +77,6 @@ def test_chainshot_creates_snapshots(chainshotter, mock_instance_with_volume):
     assert len(all_snaps) - 1 == len(instances)  # not counting the default Created by CreateImage snapshot
 
 
-@mock_ec2
 def test_chainshot_return_data(chainshotter, mock_instance_with_volume, mock_instance_data):
     chainshot_data = chainshotter.chainshot("Test", [mock_instance_with_volume().id])
     ec2 = boto3.resource('ec2', region_name=DEFAULT_REGION)
@@ -73,7 +99,6 @@ def test_chainshot_return_data(chainshotter, mock_instance_with_volume, mock_ins
         assert data["instance"]["security_groups"][0] == mock_instance_data["security_group_name"]
 
 
-@mock_ec2
 def test_invalid_chainshots(chainshotter, mock_instance):
     # volumes filter returns empty (no ethermint_volume)
     instance = mock_instance().id
@@ -84,7 +109,6 @@ def test_invalid_chainshots(chainshotter, mock_instance):
     pass
 
 
-@mock_ec2
 def test_starting_instances_and_attaching_ebs_snapshots_on_thaw(chainshotter, prepare_chainshot, mock_instance,
                                                                 monkeypatch):
     chainshot = prepare_chainshot()
@@ -106,7 +130,6 @@ def test_starting_instances_and_attaching_ebs_snapshots_on_thaw(chainshotter, pr
             assert bdm["DeviceName"] == DEFAULT_DEVICE
 
 
-@mock_ec2
 def test_mounting_ebs_and_running_on_thaw(chainshotter, prepare_chainshot, mock_instance, mockossystem, monkeypatch):
     # mount has to be done manually since the boto3 interface does not allow to do this
     # For now testing if the ssh command is correct
@@ -130,13 +153,11 @@ def test_mounting_ebs_and_running_on_thaw(chainshotter, prepare_chainshot, mock_
         instance.public_ip_address))
 
 
-@mock_ec2
 def test_starting_ethermint_on_thaw(chainshotter):
     # How?
     pass
 
 
-@mock_ec2
 def test_invalid_thaws(chainshotter, prepare_chainshot):
     # InvalidSnapshot
     chainshot = prepare_chainshot()

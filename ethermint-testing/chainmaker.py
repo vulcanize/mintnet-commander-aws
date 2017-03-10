@@ -181,6 +181,15 @@ class Chainmaker:
                               instance.key_name,
                               instance.public_ip_address)
 
+    @staticmethod
+    def _halt_ethermint(minion_instances):
+        for i, instance in enumerate(minion_instances):
+            logger.info("Halting ethermint on instance ID: {}".format(instance.id))
+
+            run_sh_script("shell_scripts/halt_ethermint.sh",
+                          instance.key_name,
+                          instance.public_ip_address)
+
     def create_ethermint_network(self, ethermint_nodes_count, ethermint_node_ami, update_salt_roster=False):
         """
         Creates an ethermint network consisting of multiple ethermint nodes

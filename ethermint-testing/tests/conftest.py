@@ -4,13 +4,29 @@ from datetime import datetime
 import boto3
 import pytest
 from mock import MagicMock
+from moto import mock_ec2
 
 from settings import DEFAULT_REGION, DEFAULT_INSTANCE_TYPE
+
+SECURITY_GROUP_NAME = "securitygroup"
+
+
+@pytest.fixture()
+def moto():
+    mock_ec2().start()
+    yield None
+    mock_ec2().stop()
 
 
 @pytest.fixture()
 def mockossystem():
     return MagicMock(os.system, return_value=0)
+
+
+@pytest.fixture()
+def mock_security_group(moto):
+    ec2 = boto3.resource('ec2', region_name=DEFAULT_REGION)
+    return ec2.create_security_group(GroupName=SECURITY_GROUP_NAME, Description="test group")
 
 
 @pytest.fixture()
@@ -23,7 +39,7 @@ def mock_instance_data():
                 "Value": "testinstance"
             }
         ],
-        "security_group_name": "securitygroup",
+        "security_group_name": SECURITY_GROUP_NAME,
         "key_name": "Key",
         "launch_time": datetime.now()
     }
@@ -31,18 +47,15 @@ def mock_instance_data():
 
 
 @pytest.fixture()
-def mock_instance(mock_instance_data):
+def mock_instance(mock_instance_data, mock_security_group, moto):
     def _mock_instance():
         ec2 = boto3.resource('ec2', region_name=DEFAULT_REGION)
-
-        security_group_name = mock_instance_data["security_group_name"]
-        g = ec2.create_security_group(GroupName=security_group_name, Description="test group")
 
         instance = ec2.create_instances(ImageId=mock_instance_data["image_id"],
                                         InstanceType=DEFAULT_INSTANCE_TYPE,
                                         MinCount=1,
                                         MaxCount=1,
-                                        SecurityGroupIds=[g.id],
+                                        SecurityGroupIds=[mock_security_group.id],
                                         KeyName=mock_instance_data["key_name"])[0]
         instance.create_tags(Tags=mock_instance_data["tags"])
         assert len(list(instance.volumes.all())) == 1
@@ -52,7 +65,7 @@ def mock_instance(mock_instance_data):
 
 
 @pytest.fixture()
-def mock_instance_with_volume(mock_instance):
+def mock_instance_with_volume(mock_instance, moto):
     def _mock_instance_with_volume():
         instance = mock_instance()
         ec2 = boto3.resource('ec2', region_name=DEFAULT_REGION)
