@@ -31,8 +31,8 @@ def prepare_chainshot():
                 [
                     {
                         'instance': {'ami': 'imageID', 'tags': [{u'Value': 'testinstance', u'Key': 'Name'}],
-                                     'key_name': 'Key', 'region': 'us-east-1a', 'vpc_id': None, 'id': 'i-47d03277',
-                                     'security_groups': ['securitygroup']},
+                                     'key_name': 'Key', 'region': 'us-east-1', 'availablility_zone': 'us-east-1a',
+                                     'vpc_id': None, 'id': 'i-47d03277', 'security_groups': ['securitygroup']},
                         'snapshot': {'to': snapshot.start_time.isoformat(), 'from': '2017-03-02T10:25:49+00:00',
                                      'id': snapshot.id}}],
             'chainshot_name': 'Test'
@@ -43,7 +43,7 @@ def prepare_chainshot():
 
 @mock_ec2
 def test_chainshot_creates_snapshots(chainshotter, mock_instance_with_volume):
-    instances = [mock_instance_with_volume().id]
+    instances = {mock_instance_with_volume().id: DEFAULT_REGION}
     chainshotter.chainshot("Test", instances)
     ec2_client = boto3.client('ec2', region_name=DEFAULT_REGION)
     all_snaps = ec2_client.describe_snapshots(Filters=[{'Name': 'description', 'Values': ['ethermint-backup']}])
@@ -52,7 +52,8 @@ def test_chainshot_creates_snapshots(chainshotter, mock_instance_with_volume):
 
 @mock_ec2
 def test_chainshot_return_data(chainshotter, mock_instance_with_volume, mock_instance_data):
-    chainshot_data = chainshotter.chainshot("Test", [mock_instance_with_volume().id])
+    instances = {mock_instance_with_volume().id: DEFAULT_REGION}
+    chainshot_data = chainshotter.chainshot("Test", instances)
     ec2 = boto3.resource('ec2', region_name=DEFAULT_REGION)
     ec2_client = boto3.client('ec2', region_name=DEFAULT_REGION)
     all_snaps = ec2_client.describe_snapshots(Filters=[{'Name': 'description', 'Values': ['ethermint-backup']}])
@@ -76,9 +77,9 @@ def test_chainshot_return_data(chainshotter, mock_instance_with_volume, mock_ins
 @mock_ec2
 def test_invalid_chainshots(chainshotter, mock_instance):
     # volumes filter returns empty (no ethermint_volume)
-    instance = mock_instance().id
+    instances = {mock_instance().id: DEFAULT_REGION}
     with pytest.raises(IndexError):
-        chainshotter.chainshot("Test", [instance])
+        chainshotter.chainshot("Test", instances)
 
     # UnauthorizedOperation when creating a snapshot - how to simulate?
     pass

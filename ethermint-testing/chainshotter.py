@@ -12,29 +12,25 @@ logger = logging.getLogger(__name__)
 
 class Chainshotter:
     def __init__(self):
-        self.ec2 = boto3.resource('ec2', region_name=DEFAULT_REGION)  # FIXME different regions
+        pass
 
-    def chainshot(self, name, instances_ids, clean_up=False):
+    def chainshot(self, name, instances_ids_map, clean_up=False):
         """
         Allows to snapshot a chain and save a json file with all chainshot info
 
         :param clean_up: indicates if instances should be terminated after snapshot is taken
         :param name: the name (ID) of the snapshot
-        :param instances: the list of instance IDs to be snapshotted
+        :param instances_ids_map: the map of instance IDs pointing to regions where they're located
         :return: a dictionary containing the snapshot info
         """
-
-        ec2 = boto3.resource('ec2', region_name=DEFAULT_REGION)  # FIXME different regions
-        instances = []
-        for instance_id in instances_ids:
-            instances.append(ec2.Instance(instance_id))
-
         results = {
             "chainshot_name": name,
             "instances": []
         }
 
-        for instance in instances:
+        for instance_id, region in instances_ids_map.items():
+            ec2 = boto3.resource('ec2', region_name=region)
+            instance = ec2.Instance(instance_id)
             volumes_collection = instance.volumes.filter(Filters=
             [
                 {'Name': 'tag-key', 'Values': ["Name"]},
@@ -45,14 +41,15 @@ class Chainshotter:
 
             logger.info("Creating snapshot of volume {} of instance {}".format(volume.id, instance.id))
 
-            snapshot = self.ec2.create_snapshot(VolumeId=volume.id, Description='ethermint-backup')
+            snapshot = ec2.create_snapshot(VolumeId=volume.id, Description='ethermint-backup')
             snapshot.wait_until_completed()
             logger.info("Created snapshot {}".format(snapshot.id))
 
             snapshot_info = {
                 "instance": {
                     "id": instance.id,
-                    "region": instance.placement["AvailabilityZone"],
+                    "region": get_region_name(instance.placement["AvailabilityZone"]),
+                    "availablility_zone": instance.placement["AvailabilityZone"],
                     "ami": instance.image_id,
                     "tags": instance.tags,
                     "vpc_id": instance.vpc_id,
@@ -96,13 +93,14 @@ class Chainshotter:
         chainmaker = Chainmaker()
 
         for snapshot_info in chainshot["instances"]:
+            ec2 = boto3.resource('ec2', region_name=snapshot_info["instance"]["region"])
             new_instance = chainmaker.create_ec2s_from_json([snapshot_info["instance"]])[0]
             logger.info("Created new instance {} from AMI {}".format(new_instance.id, snapshot_info["instance"]["ami"]))
 
-            snapshot = self.ec2.Snapshot(snapshot_info["snapshot"]["id"])
+            snapshot = ec2.Snapshot(snapshot_info["snapshot"]["id"])
 
-            volume = self.ec2.create_volume(SnapshotId=snapshot.id,
-                                            AvailabilityZone=new_instance.placement["AvailabilityZone"])
+            volume = ec2.create_volume(SnapshotId=snapshot.id,
+                                       AvailabilityZone=new_instance.placement["AvailabilityZone"])
 
             wait_for_available_volume(volume, get_region_name(new_instance.placement["AvailabilityZone"]))
 
@@ -121,6 +119,5 @@ class Chainshotter:
 
         Chainmaker._run_ethermint(instances)
         logger.info("Done starting ethermint on instances")
-
 
         return instances
