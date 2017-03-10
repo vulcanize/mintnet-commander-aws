@@ -57,11 +57,15 @@ def mock_instance_data():
 
 @pytest.fixture()
 def mock_instance(mock_instance_data):
-    def _mock_instance():
-        ec2 = boto3.resource('ec2', region_name=DEFAULT_REGION)
+    def _mock_instance(region=DEFAULT_REGION):
+        ec2 = boto3.resource('ec2', region_name=region)
 
         security_group_name = mock_instance_data["security_group_name"]
-        g = ec2.create_security_group(GroupName=security_group_name, Description="test group")
+        groups = list(ec2.security_groups.filter(GroupNames=[security_group_name]))
+        if len(groups) > 0:
+            g = groups[0]
+        else:
+            g = ec2.create_security_group(GroupName=security_group_name, Description="test group")
 
         instance = ec2.create_instances(ImageId=mock_instance_data["image_id"],
                                         InstanceType=DEFAULT_INSTANCE_TYPE,

@@ -22,22 +22,22 @@ def chainshotter(monkeypatch, mockossystem):
 
 @pytest.fixture()
 def prepare_chainshot():
-    def _prepare_chainshot():
-        ec2 = boto3.resource('ec2', region_name=DEFAULT_REGION)
-        volume = ec2.create_volume(Size=1, AvailabilityZone=DEFAULT_REGION)
-        snapshot = ec2.create_snapshot(VolumeId=volume.id, Description='ethermint-backup')
-        return {
-            'instances':
-                [
-                    {
+    def _prepare_chainshot(regions):
+        instances_list = []
+        for region in regions:
+            ec2 = boto3.resource('ec2', region_name=region)
+            volume = ec2.create_volume(Size=1, AvailabilityZone=region)
+            snapshot = ec2.create_snapshot(VolumeId=volume.id, Description='ethermint-backup')
+            instances_list.append({
                         'instance': {'ami': 'imageID', 'tags': [{u'Value': 'testinstance', u'Key': 'Name'}],
-                                     'key_name': 'Key', 'region': 'us-east-1', 'availablility_zone': 'us-east-1a',
+                                     'key_name': 'Key', 'region': region, 'availablility_zone': region,
                                      'vpc_id': None, 'id': 'i-47d03277', 'security_groups': ['securitygroup']},
                         'snapshot': {'to': snapshot.start_time.isoformat(), 'from': '2017-03-02T10:25:49+00:00',
-                                     'id': snapshot.id}}],
+                                     'id': snapshot.id}})
+        return {
+            'instances': instances_list,
             'chainshot_name': 'Test'
         }
-
     return _prepare_chainshot
 
 
@@ -94,47 +94,51 @@ def test_invalid_chainshots(chainshotter, mock_instance):
 @mock_ec2
 def test_chainshot_cleanup(chainshotter, mock_instance_with_volume, mockossystem):
     pass
-    # instance = mock_instance_with_volume()
-    # instances = {instance.id: DEFAULT_REGION}
-    # chainshotter.chainshot("Test", instances, clean_up=True)
-    #
-    # mockossystem.assert_called_once_with("ssh -o StrictHostKeyChecking=no -i {0} ubuntu@{1} "
-    #                                      "'bash -s' < shell_scripts/unmount_new_volume.sh".format(
-    #     get_shh_key_file(instance.key_name),
-    #     instance.public_ip_address))
-    #
-    # # TODO test detaching and deleting volume here
-    #
-    # assert instance.state["Name"] == 'terminated'
 
 
 @mock_ec2
-def test_starting_instances_and_attaching_ebs_snapshots_on_thaw(chainshotter, prepare_chainshot, mock_instance,
-                                                                monkeypatch):
-    chainshot = prepare_chainshot()
-    monkeypatch.setattr(Chainmaker, 'create_ec2s_from_json', MagicMock(return_value=[mock_instance()]))
+def test_starting_instances_on_thaw(chainshotter, prepare_chainshot, monkeypatch, mock_instance):
+    # TODO
+    pass
+    # instances_count = 4
+    # chainshot = prepare_chainshot([DEFAULT_REGION] * instances_count)
+    # monkeypatch.setattr(Chainmaker, 'create_ec2s_from_json', MagicMock(return_value=[mock_instance()]))
+    # instances = chainshotter.thaw(chainshot)
+    #
+    # assert len(instances) == len(chainshot["instances"])
+    #
+    # assert Chainmaker.create_ec2s_from_json.call_count == instances_count
+    #
+    # for c in chainshot["instances"]:
+    #     Chainmaker.create_ec2s_from_json.assert_has_calls([c["instance"]])
+
+
+@mock_ec2
+def test_attaching_ebs_snapshots_on_thaw(chainshotter, prepare_chainshot, mock_instance,
+                                                                monkeypatch, mockregions):
+    chainshot = prepare_chainshot(mockregions)
+    monkeypatch.setattr(Chainmaker, 'create_ec2s_from_json', lambda self, config: [mock_instance(config[0]["region"])])
     instances = chainshotter.thaw(chainshot)
 
-    assert len(instances) == 1
-
-    Chainmaker.create_ec2s_from_json.assert_called_once_with([chainshot["instances"][0]["instance"]])
-
-    volumes = list(instances[0].volumes.filter(Filters=
-    [
-        {'Name': 'snapshot-id', 'Values': [chainshot["instances"][0]["snapshot"]["id"]]}
-    ]))
-    assert len(volumes) == 1
-    assert volumes[0].attachments[0]["Device"] == DEFAULT_DEVICE
-    for bdm in instances[0].block_device_mappings:
-        if bdm["Ebs"]["VolumeId"] == volumes[0].id:
-            assert bdm["DeviceName"] == DEFAULT_DEVICE
+    snapshot_ids = [inst["snapshot"]["id"] for inst in chainshot["instances"]]
+    for instance in instances:
+        volumes = list(instance.volumes.filter(Filters=
+        [
+            {'Name': 'snapshot-id', 'Values': snapshot_ids}
+        ]))
+        assert len(volumes) == 1
+        assert volumes[0].attachments[0]["Device"] == DEFAULT_DEVICE
+        for bdm in instance.block_device_mappings:
+            if bdm["Ebs"]["VolumeId"] == volumes[0].id:
+                assert bdm["DeviceName"] == DEFAULT_DEVICE
 
 
 @mock_ec2
-def test_mounting_ebs_and_running_on_thaw(chainshotter, prepare_chainshot, mock_instance, mockossystem, monkeypatch):
+def test_mounting_ebs_and_running_on_thaw(chainshotter, prepare_chainshot, mock_instance, mockossystem, monkeypatch,
+                                          mockregions):
     # mount has to be done manually since the boto3 interface does not allow to do this
     # For now testing if the ssh command is correct
-    chainshot = prepare_chainshot()
+    chainshot = prepare_chainshot([DEFAULT_REGION])
     instance = mock_instance()
     monkeypatch.setattr(Chainmaker, 'create_ec2s_from_json', MagicMock(return_value=[instance]))
     mockossystem.reset_mock()
@@ -163,7 +167,7 @@ def test_starting_ethermint_on_thaw(chainshotter):
 @mock_ec2
 def test_invalid_thaws(chainshotter, prepare_chainshot):
     # InvalidSnapshot
-    chainshot = prepare_chainshot()
+    chainshot = prepare_chainshot([DEFAULT_REGION])
     ec2_client = boto3.client('ec2', region_name=DEFAULT_REGION)
     ec2_client.delete_snapshot(SnapshotId=chainshot["instances"][0]["snapshot"]["id"])
     with pytest.raises(ClientError):
