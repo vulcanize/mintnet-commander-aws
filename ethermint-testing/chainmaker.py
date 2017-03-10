@@ -211,8 +211,8 @@ class Chainmaker:
 
         # Create security groups in all regions
         security_groups = {}
+        security_group_name = "ethermint-security_group-salt-ssh-" + str(datetime.now())
         for region in distinct_regions:
-            security_group_name = "ethermint-security_group-salt-ssh-" + str(datetime.now())
             group = self._create_security_group(security_group_name, DEFAULT_PORTS, region)
             security_groups[region] = group.id
 
@@ -222,6 +222,7 @@ class Chainmaker:
         ethermint_network_keyfile = "salt-instance-" + str(int(time.time())) + "_" + uuid4().hex
         for region in distinct_regions:
             create_keyfile(ethermint_network_keyfile, region)
+
         logger.info("Nodes SSH key in {}".format(ethermint_network_keyfile))
 
         for i, region in enumerate(regions):
