@@ -7,6 +7,7 @@ from mock import MagicMock
 from moto import mock_ec2
 
 from amibuilder import AMIBuilder
+from chainshotter import RegionInstancePair
 from settings import DEFAULT_REGION, DEFAULT_INSTANCE_TYPE
 
 SECURITY_GROUP_NAME = "securitygroup"
@@ -101,7 +102,7 @@ def mock_instance(mock_instance_data, mock_security_group, moto):
 @pytest.fixture()
 def mock_instances_in_regions(mock_instance_data, moto):
     def _mock_instances(regions):
-        instances = {}
+        instances = []
 
         sec_groups = {}
         security_group_name = mock_instance_data["security_group_name"]
@@ -120,7 +121,7 @@ def mock_instances_in_regions(mock_instance_data, moto):
                                             KeyName=mock_instance_data["key_name"])[0]
             instance.create_tags(Tags=mock_instance_data["tags"])
             assert len(list(instance.volumes.all())) == 1
-            instances[instance.id] = region
+            instances.append(RegionInstancePair(region, instance.id))
         return instances
 
     return _mock_instances
@@ -130,10 +131,8 @@ def mock_instances_in_regions(mock_instance_data, moto):
 def mock_instances_with_volumes(mock_instances_in_regions, moto):
     def _mock_instances_with_volumes(regions):
         instances = mock_instances_in_regions(regions)
-        for instance_id, region in instances.items():
-            ec2 = boto3.resource('ec2', region_name=region)
-            instance = ec2.Instance(instance_id)
-            add_volume_to_instance(instance, region)
+        for pair in instances:
+            add_volume_to_instance(pair.instance, pair.region_name)
         return instances
 
     return _mock_instances_with_volumes

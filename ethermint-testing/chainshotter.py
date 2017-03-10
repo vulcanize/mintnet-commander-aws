@@ -10,11 +10,32 @@ from waiting_for_ec2 import wait_for_detached, wait_for_available_volume
 logger = logging.getLogger(__name__)
 
 
+class RegionInstancePair:
+    """
+    Region and ec2-resource bound instance
+    """
+    def __init__(self, region_name, instance_id):
+        self.region_name = region_name
+        self.id = instance_id
+
+    @property
+    def instance(self):
+        """
+        use instance.instance to instantiate the instance instance for instance id
+        :return:
+        """
+        return self.ec2.Instance(self.id)
+
+    @property
+    def ec2(self):
+        return boto3.resource('ec2', region_name=self.region_name)
+
+
 class Chainshotter:
     def __init__(self):
         pass
 
-    def chainshot(self, name, instances_ids_map, clean_up=False):
+    def chainshot(self, name, region_instances, clean_up=False):
         """
         Allows to snapshot a chain and save a json file with all chainshot info
 
@@ -28,15 +49,12 @@ class Chainshotter:
             "instances": []
         }
 
-        instances = [boto3.resource('ec2', region_name=region).Instance(instance_id) for
-                     instance_id, region in instances_ids_map.items()]
+        instances = [pair.instance for pair in region_instances]
 
         Chainmaker._halt_ethermint(instances)
 
-        for instance_id, region in instances_ids_map.items():
-            ec2 = boto3.resource('ec2', region_name=region)
-            instance = ec2.Instance(instance_id)
-
+        for pair in region_instances:
+            instance = pair.instance
             volumes_collection = instance.volumes.filter(Filters=
             [
                 {'Name': 'tag-key', 'Values': ["Name"]},
@@ -45,7 +63,7 @@ class Chainshotter:
             )
             volume = list(volumes_collection)[0]
 
-            snapshot_info = self._snapshot(instance, volume, ec2)
+            snapshot_info = self._snapshot(instance, volume, pair.ec2)
 
             results["instances"].append(snapshot_info)
 

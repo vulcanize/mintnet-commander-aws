@@ -7,7 +7,7 @@ from botocore.exceptions import ClientError
 from mock import MagicMock
 
 from chainmaker import Chainmaker
-from chainshotter import Chainshotter
+from chainshotter import Chainshotter, RegionInstancePair
 from settings import DEFAULT_REGION, DEFAULT_DEVICE
 from utils import get_shh_key_file
 
@@ -46,7 +46,7 @@ def test_chainshot_halts_restarts(chainshotter, mock_instance_with_volume, mocko
     # 2 instances to check if halt and start are in right order
     instance1 = mock_instance_with_volume()
     instance2 = mock_instance_with_volume()
-    chainshotter.chainshot("Test", {instance1.id: DEFAULT_REGION, instance2.id: DEFAULT_REGION})
+    chainshotter.chainshot("Test", [RegionInstancePair(DEFAULT_REGION, instance.id) for instance in [instance1, instance2]])
 
     args_list = mockossystem.call_args_list
     assert len(args_list) == 4
@@ -108,7 +108,7 @@ def test_chainshot_return_data(chainshotter, mock_instances_with_volumes, mockre
 
 def test_invalid_chainshots(chainshotter, mock_instance):
     # volumes filter returns empty (no ethermint_volume)
-    instances = {mock_instance().id: DEFAULT_REGION}
+    instances = [RegionInstancePair(DEFAULT_REGION, mock_instance().id)]
     with pytest.raises(IndexError):
         chainshotter.chainshot("Test", instances)
 
