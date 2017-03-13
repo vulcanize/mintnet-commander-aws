@@ -204,6 +204,10 @@ class Chainmaker:
         :param update_salt_roster: indicates if the system /etc/salt/roster file should be updated
         :return: a list of all other instances created
         """
+        for check in ["tendermint version", "ethermint -h", "packer version"]:
+            if not os.system(check) == 0:
+                raise EnvironmentError("{} not found in path".format(check))
+
         distinct_regions = set(regions)
 
         # Find AMI ID for each region and create AMIs if missing

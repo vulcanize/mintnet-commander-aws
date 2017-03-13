@@ -229,3 +229,11 @@ def test_isalive_dead(chainmaker, mocksubprocess, mockregions):
     result = chainmaker.isalive(RegionInstancePair(mockregions[0], nodes[0].id))
 
     assert not result
+
+
+@pytest.mark.parametrize("pathcheck", ["tendermint version", "ethermint -h", "packer version"])
+def test_check_path(chainmaker, mocksubprocess, mockregions, mockossystem, pathcheck):
+    chainmaker.create_ethermint_network(mockregions, "HEAD", "master_pub_key")
+
+    mockossystem.assert_any_call(pathcheck)
+
