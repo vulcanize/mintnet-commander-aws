@@ -232,8 +232,23 @@ def test_isalive_dead(chainmaker, mocksubprocess, mockregions):
 
 
 @pytest.mark.parametrize("pathcheck", ["tendermint version", "ethermint -h", "packer version"])
-def test_check_path(chainmaker, mocksubprocess, mockregions, mockossystem, pathcheck):
+def test_check_path(chainmaker, mockregions, mockossystem, pathcheck):
     chainmaker.create_ethermint_network(mockregions, "HEAD", "master_pub_key")
 
     mockossystem.assert_any_call(pathcheck)
 
+
+def test_chainmaker_imports_keypairs(chainmaker, mockregions):
+    chainmaker.create_ethermint_network(mockregions, "HEAD", "master_pub_key")
+
+    keypairs = []
+    for region in mockregions:
+        ec2 = boto3.client('ec2', region_name=region)
+        currentkeypairs = ec2.describe_key_pairs()['KeyPairs']
+        assert len(currentkeypairs) == 1
+        keypairs.append(currentkeypairs)
+
+    # this must be the same keypair for every region
+    # FIXME: sad that moto deals different fingerprints to the keys
+    for keypair in keypairs[1:]:
+        assert keypair[0]['KeyName'] == keypairs[0][0]['KeyName']

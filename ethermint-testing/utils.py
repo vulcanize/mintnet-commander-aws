@@ -39,7 +39,7 @@ def get_region_name(region):
     return region
 
 
-def create_keyfile(name, region):
+def create_keyfile(name, regions_set):
     """
     Creates a key pair in AWS and saves the .pem file to default location,
     so that the user can connect to the instance using SSH
@@ -47,6 +47,8 @@ def create_keyfile(name, region):
     :param region: the region where the key should be created
     :return: the full key path
     """
+    regions = list(regions_set)
+    region = regions[0]
     ec2 = boto3.resource('ec2', region_name=region)
     keyfile = name + ".pem"
     key = ec2.create_key_pair(KeyName=name)
@@ -56,7 +58,20 @@ def create_keyfile(name, region):
     with open(full_keyfile, 'w+') as f:
         f.write(key.key_material)
     os.chmod(full_keyfile, 0o600)
-    return full_keyfile
+
+    if len(regions) == 1:
+        return full_keyfile  # done, no need to import in differen regions
+
+    # there must be an easier way to do this as required by aws, but cannot find it :(,
+    # tried OpenSSL, searched boto3 docs. It gets worse as moto returns the "key" result malformed
+    openssh_public_material = subprocess.check_output(['ssh-keygen', '-y', '-f', full_keyfile])
+
+    for other_region in regions[1:]:
+        ec2 = boto3.resource('ec2', region_name=other_region)
+
+        res = ec2.import_key_pair(KeyName=name,
+                                  PublicKeyMaterial=openssh_public_material)
+        print res.key_fingerprint
 
 
 def run_sh_script(script_filename, ssh_key_name, ip_address):
@@ -79,11 +94,16 @@ def run_sh_script(script_filename, ssh_key_name, ip_address):
             output = subprocess.check_output(ssh_command, shell=True)  # FIXME, shell=True unsafe
             result = 0
         except subprocess.CalledProcessError as e:
-            logger.info("No success yet tries {}/{}: {}".format(tries, MAX_MACHINE_CALL_TRIES, e.message))
+            logger.info("SSH {} to {}, No success yet, tries {}/{}: {}".format(script_filename,
+                                                                               ip_address,
+                                                                               tries,
+                                                                               MAX_MACHINE_CALL_TRIES,
+                                                                               e.message))
             time.sleep(5)  # let things settle, SSH refuses connection
 
     if tries == MAX_MACHINE_CALL_TRIES:
-        logger.error("Unable to perform actions using SSH")
+        raise IOError("Unable to perform actions using SSH, {} on {}".format(script_filename,
+                                                                             ip_address))
     else:
         logger.info("{} run successfully".format(script_filename))
         return output

@@ -237,8 +237,7 @@ class Chainmaker:
 
         # Create a common key in all regions
         ethermint_network_keyfile = "salt-instance-" + str(int(time.time())) + "_" + uuid4().hex
-        for region in distinct_regions:
-            create_keyfile(ethermint_network_keyfile, region)
+        create_keyfile(ethermint_network_keyfile, distinct_regions)
 
         logger.info("Nodes SSH key in {}".format(ethermint_network_keyfile))
 
