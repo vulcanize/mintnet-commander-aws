@@ -1,6 +1,5 @@
 import os
 import shutil
-import subprocess
 from os.path import join, dirname
 
 import boto3
@@ -9,6 +8,7 @@ import pytest
 import yaml
 from mock.mock import MagicMock
 
+from amibuilder import AMIBuilder
 from chainmaker import Chainmaker
 from chainshotter import RegionInstancePair
 from settings import DEFAULT_DEVICE, DEFAULT_PORTS
@@ -17,15 +17,15 @@ import fill_validators
 
 
 @pytest.fixture()
-def fake_ethermint_files(tmp_dir, monkeypatch):
+def fake_ethermint_files(tmp_files_dir, monkeypatch):
     """
     Ensures that fake ethermint files are generated without calls to os.system
     """
     testsdir = os.path.dirname(os.path.realpath(__file__))
-    dest = join(tmp_dir, "ethermint", "priv_validator.json.{}")
+    dest = join(tmp_files_dir, "ethermint", "priv_validator.json.{}")
     if not os.path.exists(dirname(dest)):
         os.makedirs(dirname(dest))
-    dest_datadir = join(tmp_dir, "ethermint", "data")
+    dest_datadir = join(tmp_files_dir, "ethermint", "data")
     if not os.path.exists(dest_datadir):
         os.makedirs(dest_datadir)
 
@@ -43,13 +43,17 @@ def fake_ethermint_files(tmp_dir, monkeypatch):
 
 
 @pytest.fixture()
+def mockamibuilder(mockami, monkeypatch):
+    mock = MagicMock(AMIBuilder)
+    mock.create_ami = MagicMock(return_value=mockami)
+    monkeypatch.setattr('chainmaker.AMIBuilder', MagicMock(return_value=mock))
+    return mock
+
+
+@pytest.fixture()
 def chainmaker(monkeypatch, mockossystem, mocksubprocess,
-               mockamibuilder, tmp_dir, fake_ethermint_files, moto):
-    monkeypatch.setattr(subprocess, 'check_output', mocksubprocess)
-    monkeypatch.setattr(os, 'system', mockossystem)
-    monkeypatch.setattr('utils.DEFAULT_FILES_LOCATION', tmp_dir)
-    monkeypatch.setattr('chainmaker.DEFAULT_FILES_LOCATION', tmp_dir)
-    monkeypatch.setattr('chainmaker.AMIBuilder', mockamibuilder)
+               mockamibuilder, tmp_files_dir, fake_ethermint_files, moto):
+    # generic "all mocked out" instance
     return Chainmaker()
 
 
@@ -96,7 +100,7 @@ def test_ethermint_network_creates_AMIs(chainmaker, mockregions, mockamibuilder)
 
     distinct_regions = set(mockregions)
     for region in distinct_regions:
-        mockamibuilder().create_ami.assert_any_call(ethermint_version, "test_ethermint_ami-ssh", regions=[region])
+        mockamibuilder.create_ami.assert_any_call(ethermint_version, "test_ethermint_ami-ssh", regions=[region])
 
 
 def test_ethermint_network_uses_existing_AMIs_when_exist(chainmaker, mockregions, mockamibuilder, create_mock_amis):
@@ -105,7 +109,7 @@ def test_ethermint_network_uses_existing_AMIs_when_exist(chainmaker, mockregions
     create_mock_amis(set(mockregions), "test_ethermint_ami-ssh", ethermint_version)
 
     chainmaker.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
-    mockamibuilder().create_ami.assert_not_called()
+    mockamibuilder.create_ami.assert_not_called()
 
 
 def test_ethermint_network_find_AMI(chainmaker, mockregions, mockamibuilder, create_mock_amis, fake_ethermint_files):
@@ -117,7 +121,7 @@ def test_ethermint_network_find_AMI(chainmaker, mockregions, mockamibuilder, cre
     mockregions += [new_region]
 
     chainmaker.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
-    mockamibuilder().create_ami.called_once_with(ethermint_version, "test_ethermint_ami-ssh", regions=[new_region])
+    mockamibuilder.create_ami.called_once_with(ethermint_version, "test_ethermint_ami-ssh", regions=[new_region])
 
 
 def test_ethermint_network_attaches_volumes(chainmaker, mockregions):
@@ -165,9 +169,9 @@ def test_ethermint_network_update_roster(chainmaker, mockregions, mockossystem):
         assert contents[c]['host'] in nodes_ips
 
 
-def test_ethermint_network_prepares_for_ethermint(chainmaker, mockregions, mocksubprocess, mockossystem, tmp_dir):
+def test_ethermint_network_prepares_for_ethermint(chainmaker, mockregions, mocksubprocess, mockossystem, tmp_files_dir):
     nodes = chainmaker.create_ethermint_network(mockregions, "HEAD", "master_pub_key")
-    ethermint_files_location = os.path.join(tmp_dir, "ethermint")
+    ethermint_files_location = os.path.join(tmp_files_dir, "ethermint")
 
     for i, node in enumerate(nodes):
         mocksubprocess.assert_any_call("ssh -o StrictHostKeyChecking=no -i {0} ubuntu@{1} "
@@ -264,12 +268,8 @@ def test_chainmaker_imports_keypairs(chainmaker, mockregions):
 
 
 def test_chainmaker_calls_mints(monkeypatch, mockossystem, mocksubprocess,
-                                mockamibuilder, tmp_dir, moto):
-    monkeypatch.setattr(subprocess, 'check_output', mocksubprocess)
-    monkeypatch.setattr(os, 'system', mockossystem)
-    monkeypatch.setattr('utils.DEFAULT_FILES_LOCATION', tmp_dir)
-    monkeypatch.setattr('chainmaker.DEFAULT_FILES_LOCATION', tmp_dir)
-    monkeypatch.setattr('chainmaker.AMIBuilder', mockamibuilder)
+                                mockamibuilder, tmp_files_dir, moto):
+    # mock out all reading of *mint calls results
     monkeypatch.setattr('chainmaker.fill_validators', MagicMock)
     chainmaker = Chainmaker()
     chainmaker.create_ethermint_network(['us-east-1'] * 2, "HEAD", "master_pub_key")

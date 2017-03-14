@@ -7,7 +7,6 @@ import pytest
 from mock import MagicMock
 from moto import mock_ec2
 
-from amibuilder import AMIBuilder
 from chainshotter import RegionInstancePair
 from settings import DEFAULT_REGION, DEFAULT_INSTANCE_TYPE
 
@@ -27,20 +26,17 @@ def moto():
 
 
 @pytest.fixture()
-def mockossystem():
-    return MagicMock(os.system, return_value=0)
+def mockossystem(monkeypatch):
+    mock = MagicMock(os.system, return_value=0)
+    monkeypatch.setattr(os, 'system', mock)
+    return mock
 
 
 @pytest.fixture()
-def mocksubprocess():
-    return MagicMock(subprocess.check_output, return_value="")
-
-
-@pytest.fixture()
-def mockamibuilder(mockami):
-    amibuilder = MagicMock(AMIBuilder)
-    amibuilder().create_ami = MagicMock(return_value=mockami)
-    return amibuilder
+def mocksubprocess(monkeypatch):
+    mock = MagicMock(subprocess.check_output, return_value="")
+    monkeypatch.setattr(subprocess, 'check_output', mock)
+    return mock
 
 
 @pytest.fixture()
@@ -173,8 +169,11 @@ aws_secret_access_key = AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 
 
 @pytest.fixture()
-def tmp_dir(tmpdir):
-    return str(tmpdir.mkdir("files"))
+def tmp_files_dir(tmpdir, monkeypatch):
+    dir = str(tmpdir.mkdir("files"))
+    monkeypatch.setattr('utils.DEFAULT_FILES_LOCATION', dir)
+    monkeypatch.setattr('chainmaker.DEFAULT_FILES_LOCATION', dir)
+    return dir
 
 
 @pytest.fixture()

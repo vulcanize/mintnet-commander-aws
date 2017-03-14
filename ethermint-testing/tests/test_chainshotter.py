@@ -16,10 +16,11 @@ ETHERMINT_P2P_PORT = 46656
 
 
 @pytest.fixture()
-def chainshotter(monkeypatch, mockossystem, mocksubprocess):
-    monkeypatch.setattr(os, 'system', mockossystem)
-    monkeypatch.setattr(subprocess, 'check_output', mocksubprocess)
+def mockospath(monkeypatch):
     monkeypatch.setattr(os.path, 'exists', lambda path: True)
+
+@pytest.fixture()
+def chainshotter(mockospath, mockossystem, mocksubprocess):
     return Chainshotter()
 
 
