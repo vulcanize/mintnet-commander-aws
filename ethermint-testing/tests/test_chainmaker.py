@@ -288,12 +288,12 @@ def test_chainmaker_imports_keypairs(chainmaker, mockregions):
         assert keypair[0]['KeyName'] == keypairs[0][0]['KeyName']
 
 
-def test_chainmaker_calls_mints(monkeypatch, mockossystem, mocksubprocess,
+def test_chainmaker_calls_mints(monkeypatch, mockossystem, mocksubprocess, mockregions,
                                 mockamibuilder, tmp_files_dir, moto):
     # mock out all reading of *mint calls results
     monkeypatch.setattr('chainmaker.fill_validators', MagicMock)
     chainmaker = Chainmaker()
-    chainmaker.create_ethermint_network(['us-east-1'] * 2, "HEAD", "master_pub_key")
+    chainmaker.create_ethermint_network(mockregions, "HEAD", "master_pub_key")
 
     calls = mockossystem.call_args_list
 
@@ -301,4 +301,4 @@ def test_chainmaker_calls_mints(monkeypatch, mockossystem, mocksubprocess,
     tendermint_calls = filter(lambda call: "tendermint gen_validator | tail -n +3 > " in call[0][0], calls)
 
     assert len(ethermint_calls) == 1
-    assert len(tendermint_calls) == 2
+    assert len(tendermint_calls) == len(mockregions)
