@@ -3,14 +3,23 @@
 import json
 import os
 
+ETHERMINT_GETH_GENESIS_JSON = "$GOPATH/src/github.com/tendermint/ethermint/docker/genesis.json"
+
+
+def call_gen_validator(output_path):
+    os.system("tendermint gen_validator | tail -n +3 > {}".format(output_path))
+
+
+def call_init(output_dir):
+    os.system("ethermint -datadir {} init {}".format(output_dir, ETHERMINT_GETH_GENESIS_JSON))
+
 
 def prepare_validators(num_validators, output_dir):
-    os.system("ethermint -datadir {} init {}".format(os.path.join(output_dir, "data/"),
-                                                     "$GOPATH/src/github.com/tendermint/ethermint/docker/genesis.json"))
+    call_init(os.path.join(output_dir, "data"))
     for i in range(1, num_validators + 1):
         filename = "priv_validator.json.{}".format(i)
         output_path = os.path.join(output_dir, filename)
-        os.system("tendermint gen_validator | tail -n +3 > {}".format(output_path))
+        call_gen_validator(output_path)
 
 
 def fill_validators(num_validators, genesis_file, new_genesis_file, output_dir):

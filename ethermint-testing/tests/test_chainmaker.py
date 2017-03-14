@@ -7,39 +7,49 @@ import boto3
 import mock
 import pytest
 import yaml
+from mock.mock import MagicMock
 
 from chainmaker import Chainmaker
 from chainshotter import RegionInstancePair
 from settings import DEFAULT_DEVICE, DEFAULT_PORTS
 from utils import get_shh_key_file, get_region_name
+import fill_validators
 
 
 @pytest.fixture()
-def fake_ethermint_files(tmp_dir):
-    def make_fake(count):
-        dest = join(tmp_dir, "ethermint", "priv_validator.json.{}")
-        if not os.path.exists(dirname(dest)):
-            os.makedirs(dirname(dest))
-        testsdir = os.path.dirname(os.path.realpath(__file__))
-        for i in xrange(count):
-            shutil.copyfile(os.path.join(testsdir, "priv_validator.json.in"), dest.format(i + 1))
-        dest_datadir = join(tmp_dir, "ethermint", "data")
-        if not os.path.exists(dest_datadir):
-            os.makedirs(dest_datadir)
-        shutil.copy(os.path.join(testsdir, "genesis.json"), dest_datadir)
+def fake_ethermint_files(tmp_dir, monkeypatch):
+    """
+    Ensures that fake ethermint files are generated without calls to os.system
+    """
+    testsdir = os.path.dirname(os.path.realpath(__file__))
+    dest = join(tmp_dir, "ethermint", "priv_validator.json.{}")
+    if not os.path.exists(dirname(dest)):
+        os.makedirs(dirname(dest))
+    dest_datadir = join(tmp_dir, "ethermint", "data")
+    if not os.path.exists(dest_datadir):
+        os.makedirs(dest_datadir)
 
-    return make_fake
+    def _mock_call_gen_validator(path):
+        shutil.copyfile(os.path.join(testsdir, "priv_validator.json.in"), path)
+
+    monkeypatch.setattr(fill_validators, 'call_gen_validator', MagicMock(side_effect=_mock_call_gen_validator))
+
+    def _mock_call_init(dir):
+        shutil.copy(os.path.join(testsdir, "genesis.json"), dir)
+
+    monkeypatch.setattr(fill_validators, 'call_init', MagicMock(side_effect=_mock_call_init))
+
+    return None
 
 
 @pytest.fixture()
 def chainmaker(monkeypatch, mockossystem, mocksubprocess,
-               mockamibuilder, tmp_dir, mockregions, fake_ethermint_files, moto):
+               mockamibuilder, tmp_dir, fake_ethermint_files, moto):
     monkeypatch.setattr(subprocess, 'check_output', mocksubprocess)
     monkeypatch.setattr(os, 'system', mockossystem)
     monkeypatch.setattr('utils.DEFAULT_FILES_LOCATION', tmp_dir)
     monkeypatch.setattr('chainmaker.DEFAULT_FILES_LOCATION', tmp_dir)
     monkeypatch.setattr('chainmaker.AMIBuilder', mockamibuilder)
-    fake_ethermint_files(len(mockregions))
     return Chainmaker()
 
 
@@ -105,7 +115,6 @@ def test_ethermint_network_find_AMI(chainmaker, mockregions, mockamibuilder, cre
 
     new_region = "us-gov-west-1"
     mockregions += [new_region]
-    fake_ethermint_files(len(mockregions))  # need to rebuild fake files when adding region :(
 
     chainmaker.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
     mockamibuilder().create_ami.called_once_with(ethermint_version, "test_ethermint_ami-ssh", regions=[new_region])
@@ -252,3 +261,23 @@ def test_chainmaker_imports_keypairs(chainmaker, mockregions):
     # FIXME: sad that moto deals different fingerprints to the keys
     for keypair in keypairs[1:]:
         assert keypair[0]['KeyName'] == keypairs[0][0]['KeyName']
+
+
+def test_chainmaker_calls_mints(monkeypatch, mockossystem, mocksubprocess,
+                                mockamibuilder, tmp_dir, moto):
+    monkeypatch.setattr(subprocess, 'check_output', mocksubprocess)
+    monkeypatch.setattr(os, 'system', mockossystem)
+    monkeypatch.setattr('utils.DEFAULT_FILES_LOCATION', tmp_dir)
+    monkeypatch.setattr('chainmaker.DEFAULT_FILES_LOCATION', tmp_dir)
+    monkeypatch.setattr('chainmaker.AMIBuilder', mockamibuilder)
+    monkeypatch.setattr('chainmaker.fill_validators', MagicMock)
+    chainmaker = Chainmaker()
+    chainmaker.create_ethermint_network(['us-east-1'] * 2, "HEAD", "master_pub_key")
+
+    calls = mockossystem.call_args_list
+
+    ethermint_calls = filter(lambda call: all(x in call[0][0] for x in ["ethermint -datadir", "init"]), calls)
+    tendermint_calls = filter(lambda call: "tendermint gen_validator | tail -n +3 > " in call[0][0], calls)
+
+    assert len(ethermint_calls) == 1
+    assert len(tendermint_calls) == 2
