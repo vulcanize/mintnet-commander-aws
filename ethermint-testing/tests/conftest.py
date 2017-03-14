@@ -54,19 +54,6 @@ def mock_security_group(moto, mock_instance_data):
 
 
 @pytest.fixture()
-def create_mock_amis(mockami):
-    def _create(region_set, ami_name, ethermint_version):
-        for region in region_set:
-            ec2 = boto3.resource('ec2', region_name=region)
-            ec2_client = boto3.client('ec2', region_name=region)
-            instance = ec2.create_instances(ImageId=mockami, MinCount=1, MaxCount=1)[0]
-            ami = ec2_client.create_image(InstanceId=instance.id, Name=ami_name)
-            ec2.Image(ami["ImageId"]).create_tags(Tags=[{'Key': 'Ethermint', "Value": ethermint_version}])
-
-    return _create
-
-
-@pytest.fixture()
 def mock_instance_data():
     instance = {
         "image_id": "imageID",

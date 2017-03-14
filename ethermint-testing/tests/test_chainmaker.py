@@ -43,9 +43,28 @@ def fake_ethermint_files(tmp_files_dir, monkeypatch):
 
 
 @pytest.fixture()
+def create_mock_amis(mockami, mockamibuilder):
+    """
+    Makes the mockamibuilder pretend to be building amis in regions
+    """
+    def _create(ethermint_version, ami_name, regions=None):
+        for region in regions:
+            ec2 = boto3.resource('ec2', region_name=region)
+            ec2_client = boto3.client('ec2', region_name=region)
+            instance = ec2.create_instances(ImageId=mockami, MinCount=1, MaxCount=1)[0]
+            ami = ec2_client.create_image(InstanceId=instance.id, Name=ami_name)
+            ec2.Image(ami["ImageId"]).create_tags(Tags=[{'Key': 'Ethermint', "Value": ethermint_version}])
+
+        return mockami
+
+    mockamibuilder.create_ami.side_effect = _create
+
+
+@pytest.fixture()
 def mockamibuilder(mockami, monkeypatch):
     mock = MagicMock(AMIBuilder)
-    mock.create_ami = MagicMock(return_value=mockami)
+    mock.create_ami.return_value = mockami
+
     monkeypatch.setattr('chainmaker.AMIBuilder', MagicMock(return_value=mock))
     return mock
 
@@ -106,16 +125,18 @@ def test_ethermint_network_creates_AMIs(chainmaker, mockregions, mockamibuilder)
 def test_ethermint_network_uses_existing_AMIs_when_exist(chainmaker, mockregions, mockamibuilder, create_mock_amis):
     ethermint_version = "HEAD"
 
-    create_mock_amis(set(mockregions), "test_ethermint_ami-ssh", ethermint_version)
+    chainmaker.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
+    mockamibuilder.create_ami.reset_mock()
 
     chainmaker.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
     mockamibuilder.create_ami.assert_not_called()
 
 
-def test_ethermint_network_find_AMI(chainmaker, mockregions, mockamibuilder, create_mock_amis, fake_ethermint_files):
+def test_ethermint_network_find_AMI(chainmaker, mockregions, mockamibuilder, create_mock_amis):
     ethermint_version = "HEAD"
 
-    create_mock_amis(set(mockregions), "test_ethermint_ami-ssh", ethermint_version)
+    chainmaker.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
+    mockamibuilder.create_ami.reset_mock()
 
     new_region = "us-gov-west-1"
     mockregions += [new_region]
