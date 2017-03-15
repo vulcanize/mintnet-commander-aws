@@ -109,7 +109,7 @@ def test_chainshot_return_data(chainshotter, chainmaker, mockregions, mockami):
 
 
 def test_invalid_chainshots(chainshotter, monkeypatch):
-    # patch to don't have complains about the instance missing in aws
+    # patch to not have complains about the instance missing in aws
     monkeypatch.setattr('chainmaker.RegionInstancePair.instance', MagicMock())
     instances = [RegionInstancePair(DEFAULT_REGION, 'no-instance')]
     # volumes filter returns empty (no ethermint_volume)
@@ -118,26 +118,6 @@ def test_invalid_chainshots(chainshotter, monkeypatch):
 
     # UnauthorizedOperation when creating a snapshot - how to simulate?
     pass
-
-
-def test_chainshot_cleanup(chainshotter, mockossystem):
-    pass
-
-
-def test_starting_instances_on_thaw(chainshotter, prepare_chainshot, monkeypatch):
-    # TODO
-    pass
-    # instances_count = 4
-    # chainshot = prepare_chainshot([DEFAULT_REGION] * instances_count)
-    # monkeypatch.setattr(Chainmaker, 'create_ec2s_from_json', MagicMock(return_value=[mock_instance()]))
-    # instances = chainshotter.thaw(chainshot)
-    #
-    # assert len(instances) == len(chainshot["instances"])
-    #
-    # assert Chainmaker.create_ec2s_from_json.call_count == instances_count
-    #
-    # for c in chainshot["instances"]:
-    #     Chainmaker.create_ec2s_from_json.assert_has_calls([c["instance"]])
 
 
 @pytest.mark.parametrize('regionscount', [2])
@@ -177,11 +157,6 @@ def test_mounting_ebs_and_running_on_thaw(chainshotter, mocksubprocess, prepare_
                                      "'bash -s' < shell_scripts/run_ethermint.sh".format(
         get_shh_key_file(instance.key_name),
         instance.public_ip_address), shell=True)
-
-
-def test_starting_ethermint_on_thaw(chainshotter):
-    # How?
-    pass
 
 
 @pytest.mark.parametrize('regionscount', [2])
