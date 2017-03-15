@@ -5,7 +5,7 @@ import os
 import click
 
 from amibuilder import AMIBuilder
-from chainmaker import Chainmaker
+from chainmaker import Chainmaker, RegionInstancePair
 from chainshotter import Chainshotter, RegionInstancePair
 from settings import DEFAULT_FILES_LOCATION
 

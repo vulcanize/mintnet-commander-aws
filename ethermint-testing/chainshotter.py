@@ -10,27 +10,6 @@ from waiting_for_ec2 import wait_for_detached, wait_for_available_volume
 logger = logging.getLogger(__name__)
 
 
-class RegionInstancePair:
-    """
-    Region and ec2-resource bound instance
-    """
-    def __init__(self, region_name, instance_id):
-        self.region_name = region_name
-        self.id = instance_id
-
-    @property
-    def instance(self):
-        """
-        use instance.instance to instantiate the instance instance for instance id
-        :return:
-        """
-        return self.ec2.Instance(self.id)
-
-    @property
-    def ec2(self):
-        return boto3.resource('ec2', region_name=self.region_name)
-
-
 class Chainshotter:
     def __init__(self):
         pass
@@ -48,6 +27,10 @@ class Chainshotter:
             "chainshot_name": name,
             "instances": []
         }
+        for pair in region_instances:
+            all_ids = [instance.id for instance in list(pair.ec2.instances.all())]
+            if pair.id not in all_ids:
+                raise IndexError("Instance {} not found in region {}".format(pair.id, pair.region_name))
 
         instances = [pair.instance for pair in region_instances]
 

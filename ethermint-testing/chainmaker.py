@@ -267,7 +267,7 @@ class Chainmaker:
         for node in nodes:
             logger.info("Ethermint instance ID: {} in {}".format(node.id, node.placement["AvailabilityZone"]))
 
-        return nodes
+        return map(RegionInstancePair.from_boto, nodes)
 
     def isalive(self, region_instance):
         logger.info("Getting log on instance ID: {}".format(region_instance.id))
@@ -284,3 +284,35 @@ class Chainmaker:
                                 region_instance.instance.public_ip_address)
 
         return output1 != output2
+
+
+class RegionInstancePair:
+    """
+    Region and ec2-resource bound instance. Picklable, workable as a boto3 Instance instance
+
+    Main reason for this class is being picklable, which in turn is needed by our current parallel processing
+    """
+    def __init__(self, region_name, instance_id):
+        self.region_name = region_name
+        self.id = instance_id
+        self.key_name = self.instance.key_name
+        self.public_ip_address = self.instance.public_ip_address
+        self.block_device_mappings = self.instance.block_device_mappings
+        self.image_id = self.instance.image_id
+        self.security_groups = self.instance.security_groups
+
+    @staticmethod
+    def from_boto(instance):
+        return RegionInstancePair(get_region_name(instance.placement["AvailabilityZone"]), instance.id)
+
+    @property
+    def instance(self):
+        """
+        use instance.instance to instantiate the instance instance for instance id
+        :return:
+        """
+        return self.ec2.Instance(self.id)
+
+    @property
+    def ec2(self):
+        return boto3.resource('ec2', region_name=self.region_name)

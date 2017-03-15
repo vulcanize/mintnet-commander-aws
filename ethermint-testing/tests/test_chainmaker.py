@@ -1,6 +1,4 @@
 import os
-import shutil
-from os.path import join, dirname
 
 import boto3
 import mock
@@ -8,38 +6,9 @@ import pytest
 import yaml
 from mock.mock import MagicMock
 
-from amibuilder import AMIBuilder
-from chainmaker import Chainmaker
-from chainshotter import RegionInstancePair
+from chainmaker import Chainmaker, RegionInstancePair
 from settings import DEFAULT_DEVICE, DEFAULT_PORTS
-from utils import get_shh_key_file, get_region_name
-import fill_validators
-
-
-@pytest.fixture()
-def fake_ethermint_files(tmp_files_dir, monkeypatch):
-    """
-    Ensures that fake ethermint files are generated without calls to os.system
-    """
-    testsdir = os.path.dirname(os.path.realpath(__file__))
-    dest = join(tmp_files_dir, "ethermint", "priv_validator.json.{}")
-    if not os.path.exists(dirname(dest)):
-        os.makedirs(dirname(dest))
-    dest_datadir = join(tmp_files_dir, "ethermint", "data")
-    if not os.path.exists(dest_datadir):
-        os.makedirs(dest_datadir)
-
-    def _mock_call_gen_validator(path):
-        shutil.copyfile(os.path.join(testsdir, "priv_validator.json.in"), path)
-
-    monkeypatch.setattr(fill_validators, 'call_gen_validator', MagicMock(side_effect=_mock_call_gen_validator))
-
-    def _mock_call_init(dir):
-        shutil.copy(os.path.join(testsdir, "genesis.json"), dir)
-
-    monkeypatch.setattr(fill_validators, 'call_init', MagicMock(side_effect=_mock_call_init))
-
-    return None
+from utils import get_shh_key_file
 
 
 @pytest.fixture()
@@ -58,22 +27,6 @@ def create_mock_amis(mockami, mockamibuilder):
         return mockami
 
     mockamibuilder.create_ami.side_effect = _create
-
-
-@pytest.fixture()
-def mockamibuilder(mockami, monkeypatch):
-    mock = MagicMock(AMIBuilder)
-    mock.create_ami.return_value = mockami
-
-    monkeypatch.setattr('chainmaker.AMIBuilder', MagicMock(return_value=mock))
-    return mock
-
-
-@pytest.fixture()
-def chainmaker(monkeypatch, mockossystem, mocksubprocess,
-               mockamibuilder, tmp_files_dir, fake_ethermint_files, moto):
-    # generic "all mocked out" instance
-    return Chainmaker()
 
 
 def test_creating_ethermint_network(chainmaker, mockami, mockregions):
@@ -103,7 +56,7 @@ def test_ethermint_network_security_group(chainmaker, mockregions):
     nodes = chainmaker.create_ethermint_network(mockregions, "HEAD", "master_pub_key")
 
     for node in nodes:
-        ec2 = boto3.resource('ec2', region_name=get_region_name(node.placement["AvailabilityZone"]))
+        ec2 = boto3.resource('ec2', region_name=node.region_name)
         node_sec_groups = [group["GroupId"] for group in node.security_groups]
         assert len(node_sec_groups) == 1
 
