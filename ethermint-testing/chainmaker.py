@@ -12,7 +12,7 @@ from instance_creator import InstanceCreator
 from settings import DEFAULT_INSTANCE_NAME, \
     DEFAULT_SECURITY_GROUP_DESCRIPTION, DEFAULT_PORTS, \
     DEFAULT_FILES_LOCATION
-from utils import get_region_name, create_keyfile, run_sh_script, get_shh_key_file
+from utils import get_region_name, create_keyfile, run_sh_script, get_shh_key_file, run_ethermint
 
 logger = logging.getLogger(__name__)
 
@@ -86,32 +86,6 @@ class Chainmaker:
                 "scp -o StrictHostKeyChecking=no -C -i {} {} ubuntu@{}:/ethermint/data/priv_validator.json".format(
                     get_shh_key_file(instance.key_name), src_validator_path, instance.public_ip_address))
 
-    @staticmethod
-    def _run_ethermint(minion_instances):
-        first_seed = None
-        for i, instance in enumerate(minion_instances):
-            logger.info("Running ethermint on instance ID: {}".format(instance.id))
-
-            # run ethermint
-            if first_seed is None:
-                run_sh_script("shell_scripts/run_ethermint.sh",
-                              instance.key_name,
-                              instance.public_ip_address)
-                first_seed = str(instance.public_ip_address) + ":46656"
-            else:
-                run_sh_script("shell_scripts/run_ethermint.sh {}".format(first_seed),
-                              instance.key_name,
-                              instance.public_ip_address)
-
-    @staticmethod
-    def _halt_ethermint(minion_instances):
-        for i, instance in enumerate(minion_instances):
-            logger.info("Halting ethermint on instance ID: {}".format(instance.id))
-
-            run_sh_script("shell_scripts/halt_ethermint.sh",
-                          instance.key_name,
-                          instance.public_ip_address)
-
     def create_ethermint_network(self, regions, ethermint_version, master_pub_key, update_salt_roster=False,
                                  name_root="test"):
         """
@@ -181,7 +155,7 @@ class Chainmaker:
         if update_salt_roster:
             self._update_salt(nodes)
         self._prepare_ethermint(nodes)
-        self._run_ethermint(nodes)
+        run_ethermint(nodes)
 
         for node in nodes:
             logger.info("Ethermint instance ID: {} in {}".format(node.id, node.placement["AvailabilityZone"]))

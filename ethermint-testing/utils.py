@@ -107,3 +107,29 @@ def run_sh_script(script_filename, ssh_key_name, ip_address):
     else:
         logger.info("{} run successfully".format(script_filename))
         return output
+
+
+def run_ethermint(minion_instances):
+    first_seed = None
+    for i, instance in enumerate(minion_instances):
+        logger.info("Running ethermint on instance ID: {}".format(instance.id))
+
+        # run ethermint
+        if first_seed is None:
+            run_sh_script("shell_scripts/run_ethermint.sh",
+                          instance.key_name,
+                          instance.public_ip_address)
+            first_seed = str(instance.public_ip_address) + ":46656"
+        else:
+            run_sh_script("shell_scripts/run_ethermint.sh {}".format(first_seed),
+                          instance.key_name,
+                          instance.public_ip_address)
+
+
+def halt_ethermint(minion_instances):
+    for i, instance in enumerate(minion_instances):
+        logger.info("Halting ethermint on instance ID: {}".format(instance.id))
+
+        run_sh_script("shell_scripts/halt_ethermint.sh",
+                      instance.key_name,
+                      instance.public_ip_address)

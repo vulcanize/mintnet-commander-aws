@@ -2,10 +2,9 @@ import logging
 
 import boto3
 
-from chainmaker import Chainmaker
 from instance_creator import InstanceCreator
 from settings import DEFAULT_DEVICE
-from utils import run_sh_script, get_region_name
+from utils import run_sh_script, get_region_name, run_ethermint, halt_ethermint
 from waiting_for_ec2 import wait_for_detached, wait_for_available_volume
 
 logger = logging.getLogger(__name__)
@@ -35,7 +34,7 @@ class Chainshotter:
 
         instances = [pair.instance for pair in region_instances]
 
-        Chainmaker._halt_ethermint(instances)
+        halt_ethermint(instances)
 
         for pair in region_instances:
             instance = pair.instance
@@ -58,7 +57,7 @@ class Chainshotter:
                 volume.delete()
                 instance.terminate()
 
-        Chainmaker._run_ethermint(instances)
+        run_ethermint(instances)
 
         logger.info("Finished chainshotting, the results:")
         logger.info(results)
@@ -131,7 +130,7 @@ class Chainshotter:
         for instance in instances:
             logger.info("Instance ID: {} unfreezed from chainshot".format(instance.id))
 
-        Chainmaker._run_ethermint(instances)
+        run_ethermint(instances)
         logger.info("Done starting ethermint on instances")
 
         return instances
