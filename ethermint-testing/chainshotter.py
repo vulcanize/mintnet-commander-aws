@@ -3,6 +3,7 @@ import logging
 import boto3
 
 from chainmaker import Chainmaker
+from instance_creator import InstanceCreator
 from settings import DEFAULT_DEVICE
 from utils import run_sh_script, get_region_name
 from waiting_for_ec2 import wait_for_detached, wait_for_available_volume
@@ -11,8 +12,8 @@ logger = logging.getLogger(__name__)
 
 
 class Chainshotter:
-    def __init__(self):
-        pass
+    def __init__(self, num_processes=None):
+        self.instance_creator = InstanceCreator(num_processes)
 
     def chainshot(self, name, region_instances, clean_up=False):
         """
@@ -104,11 +105,10 @@ class Chainshotter:
         :return: a list of AWS instances
         """
         instances = []
-        chainmaker = Chainmaker()
 
         for snapshot_info in chainshot["instances"]:
             ec2 = boto3.resource('ec2', region_name=snapshot_info["instance"]["region"])
-            new_instance = chainmaker.create_ec2s_from_json([snapshot_info["instance"]])[0]
+            new_instance = self.instance_creator.create_ec2s_from_json([snapshot_info["instance"]])[0]
             logger.info("Created new instance {} from AMI {}".format(new_instance.id, snapshot_info["instance"]["ami"]))
 
             snapshot = ec2.Snapshot(snapshot_info["snapshot"]["id"])

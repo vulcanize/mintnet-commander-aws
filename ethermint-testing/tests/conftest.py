@@ -1,5 +1,4 @@
 import subprocess
-from datetime import datetime
 import shutil
 from os.path import join, dirname
 import os
@@ -9,8 +8,7 @@ import pytest
 from mock import MagicMock
 from moto import mock_ec2
 
-from chainmaker import Chainmaker, RegionInstancePair
-from settings import DEFAULT_REGION, DEFAULT_INSTANCE_TYPE
+from chainmaker import Chainmaker
 import fill_validators
 from amibuilder import AMIBuilder
 

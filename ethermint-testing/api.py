@@ -4,21 +4,21 @@ import os
 
 import click
 
-from amibuilder import AMIBuilder
 from chainmaker import Chainmaker, RegionInstancePair
-from chainshotter import Chainshotter, RegionInstancePair
+from chainshotter import Chainshotter
 from settings import DEFAULT_FILES_LOCATION
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 
-class CommandEnvironment(object):
-    def __init__(self):
-        self.chainshotter = Chainshotter()
-
-
-pass_environment = click.make_pass_decorator(CommandEnvironment, ensure=True)
+# FIXME: not used anymore as our api instances depend on arguments, delete if it's not coming back
+# class CommandEnvironment(object):
+#     def __init__(self):
+#         pass
+#
+#
+# pass_environment = click.make_pass_decorator(CommandEnvironment, ensure=True)
 
 
 @click.group()
@@ -35,8 +35,7 @@ def ethermint_testing():
 @click.option('--name-root', default="test", help='Root of the names of amis to create')
 @click.option('--num-processes', '-n', default=None, type=click.INT,
               help='specify >1 if you want to run instance creation in parallel using multiprocessing')
-@pass_environment
-def create(env, update_roster, regions, ethermint_version, master_pkey_name, name_root, num_processes):
+def create(update_roster, regions, ethermint_version, master_pkey_name, name_root, num_processes):
     """
     Creates an ethermint network consisting of ethermint nodes
     """
@@ -53,13 +52,12 @@ def create(env, update_roster, regions, ethermint_version, master_pkey_name, nam
 @click.option('--instances', '-i', required=True, default=[], type=(unicode, unicode),
               multiple=True, help='The list of ethermint instance objects, supplied in "region id" paris')
 @click.option('--output-file-path', default="chainshot.json", help='Output chainshot file path (json)')
-@pass_environment
-def chainshot(env, name, instances, output_file_path):
+def chainshot(name, instances, output_file_path):
     """
     Allows to create a chainshot of a network consisting of multiple ec2 instances
     """
     instances = [RegionInstancePair(*instance) for instance in instances]
-    chainshot_data = env.chainshotter.chainshot(name, instances)
+    chainshot_data = Chainshotter().chainshot(name, instances)
     with open(output_file_path, 'w') as f:
         json.dump(chainshot_data, f, indent=2)
     logger.info("The chainshot: {}".format(chainshot_data))
@@ -67,15 +65,16 @@ def chainshot(env, name, instances, output_file_path):
 
 @ethermint_testing.command()
 @click.argument('chainshot-file', type=click.Path(exists=True))
-@pass_environment
-def thaw(env, chainshot_file):
+@click.option('--num-processes', '-n', default=None, type=click.INT,
+              help='specify >1 if you want to run instance creation in parallel using multiprocessing')
+def thaw(chainshot_file, num_processes):
     """
     Allows to unfreeze a network from a config
     """
     with open(chainshot_file) as json_data:
         chainshot = json.load(json_data)
 
-    instances = env.chainshotter.thaw(chainshot)
+    instances = Chainshotter(num_processes).thaw(chainshot)
     _print_nodes(instances)
 
 
