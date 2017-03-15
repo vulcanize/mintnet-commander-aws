@@ -8,3 +8,4 @@ coverage
 pytest-cov
 tox
 PyYAML
+python-dateutil

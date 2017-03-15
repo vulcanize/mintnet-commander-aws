@@ -1,4 +1,8 @@
+from time import sleep
+import datetime
+
 import boto3
+import dateutil.parser
 import mock
 import pytest
 from botocore.exceptions import ClientError
@@ -59,13 +63,23 @@ def test_chainshot_creates_snapshots(chainshotter, chainmaker, mockregions):
     total_snapshots = 0
     for region in set(mockregions):
         ec2_client = boto3.client('ec2', region_name=region)
-        total_snapshots += len(ec2_client.describe_snapshots(Filters=[{'Name': 'description', 'Values': ['ethermint-backup']}]))
+        all_snaps = ec2_client.describe_snapshots(Filters=[{'Name': 'description', 'Values': ['ethermint-backup']}])
+        all_snaps = [snapshot["SnapshotId"] for snapshot in all_snaps["Snapshots"]]
+        total_snapshots += len(all_snaps)
+        assert len(all_snaps) == mockregions.count(region)
     assert total_snapshots == len(instances)
 
 
 def test_chainshot_return_data(chainshotter, chainmaker, mockregions, mockami):
+    time1 = datetime.datetime.utcnow().replace(microsecond=0)
+    sleep(1)  # sleeping to put differentiate times from aws with second resolution and make test deterministic
     instances = chainmaker.create_ethermint_network(mockregions, "HEAD", "master_pub_key")
+    sleep(1)
+    time2 = datetime.datetime.utcnow().replace(microsecond=0)
+    sleep(1)
     chainshot_data = chainshotter.chainshot("Test", instances)
+    sleep(1)
+    time3 = datetime.datetime.utcnow().replace(microsecond=0)
 
     snapshots_in_regions = {}
     for region in set(mockregions):
@@ -73,7 +87,6 @@ def test_chainshot_return_data(chainshotter, chainmaker, mockregions, mockami):
         all_snaps = ec2_client.describe_snapshots(Filters=[{'Name': 'description', 'Values': ['ethermint-backup']}])
         all_snaps = [snapshot["SnapshotId"] for snapshot in all_snaps["Snapshots"]]
         snapshots_in_regions[region] = all_snaps
-        assert len(all_snaps) == mockregions.count(region)
 
     for i, data in enumerate(chainshot_data["instances"]):
         region = data["instance"]["region"]
@@ -84,10 +97,15 @@ def test_chainshot_return_data(chainshotter, chainmaker, mockregions, mockami):
         assert data["snapshot"]["id"] in snapshots_in_regions[region]
 
         assert data["instance"]["ami"] == mockami
-        # assert data["instance"]["tags"] == mock_instance_data["tags"]
-        # assert data["instance"]["key_name"] == mock_instance_data["key_name"]
-        # assert data["instance"]["security_groups"][0] == mock_instance_data["security_group_name"]
-        # TODO rest of fields: instnace: vpc_id, availablility_zone, id; snapshot: from, to
+        assert data["instance"]["tags"] == instances[i].tags
+        assert data["instance"]["key_name"] == instances[i].key_name
+        assert data["instance"]["security_groups"][0] == instances[i].security_groups[0]['GroupName']
+
+        snapshot_from = dateutil.parser.parse(data["snapshot"]["from"], ignoretz=True)
+        snapshot_to = dateutil.parser.parse(data["snapshot"]["to"], ignoretz=True)
+
+        assert time1 < snapshot_from < time2
+        assert time2 < snapshot_to < time3
 
 
 def test_invalid_chainshots(chainshotter, monkeypatch):

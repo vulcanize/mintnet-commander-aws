@@ -300,6 +300,7 @@ class RegionInstancePair:
         self.block_device_mappings = self.instance.block_device_mappings
         self.image_id = self.instance.image_id
         self.security_groups = self.instance.security_groups
+        self.tags = self.instance.tags
 
     @staticmethod
     def from_boto(instance):
