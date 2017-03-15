@@ -194,6 +194,7 @@ class RegionInstancePair:
         self.image_id = self.instance.image_id
         self.security_groups = self.instance.security_groups
         self.tags = self.instance.tags
+        self.volumes = self.instance.volumes
 
     @staticmethod
     def from_boto(instance):

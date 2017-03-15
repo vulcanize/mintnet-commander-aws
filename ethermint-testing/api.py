@@ -7,6 +7,7 @@ import click
 from chainmaker import Chainmaker, RegionInstancePair
 from chainshotter import Chainshotter
 from settings import DEFAULT_FILES_LOCATION
+from utils import print_nodes
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -44,7 +45,7 @@ def create(update_roster, regions, ethermint_version, master_pkey_name, name_roo
     chainmaker = Chainmaker(num_processes=num_processes)
     nodes = chainmaker.create_ethermint_network(regions, ethermint_version, master_pub_key, update_roster, name_root)
 
-    _print_nodes(nodes)
+    print_nodes(nodes)
 
 
 @ethermint_testing.command()
@@ -75,7 +76,7 @@ def thaw(chainshot_file, num_processes):
         chainshot = json.load(json_data)
 
     instances = Chainshotter(num_processes).thaw(chainshot)
-    _print_nodes(instances)
+    print_nodes(instances)
 
 
 @ethermint_testing.command(help="quick ugly check if the consensus on the instance is making progress"
@@ -83,18 +84,6 @@ def thaw(chainshot_file, num_processes):
 @click.argument('instance', type=(unicode, unicode))
 def isalive(instance):
     print Chainmaker().isalive(RegionInstancePair(*instance))
-
-
-def _print_nodes(nodes):
-    """
-    notify cli user using print
-    :param nodes: boto3 instances
-    """
-    print "Ethermint instances:"
-    for node in nodes:
-        region = node.placement["AvailabilityZone"][:-1]  # region is more useful for further processing
-        print "{} {}".format(region, node.id)
-    print "Check ethermint alive (printing to console really...) with isalive <region> <instance id>"
 
 
 cli = click.CommandCollection(sources=[ethermint_testing])

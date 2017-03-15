@@ -11,7 +11,7 @@ from mock import MagicMock
 from chainmaker import RegionInstancePair
 from chainshotter import Chainshotter
 from settings import DEFAULT_REGION, DEFAULT_DEVICE
-from utils import get_shh_key_file
+from utils import get_shh_key_file, print_nodes
 
 ETHERMINT_P2P_PORT = 46656
 
@@ -170,3 +170,21 @@ def test_invalid_thaws(chainshotter, prepare_chainshot, mockregions):
 
     # What else?
     pass
+
+
+@pytest.mark.parametrize('regionscount', [2])
+def test_thaw_printable(chainshotter, prepare_chainshot, capsys):
+    chainshot = prepare_chainshot
+    instances = chainshotter.thaw(chainshot)
+
+    print_nodes(instances)
+
+    out, err = capsys.readouterr()
+    assert err == ""
+
+    for i, line in enumerate(out.split('\n')):
+        if line == '':
+            continue
+        region, instance_id = line.split(' ')
+        assert region == instances[i].region_name
+        assert instance_id == instances[i].id

@@ -133,3 +133,15 @@ def halt_ethermint(minion_instances):
         run_sh_script("shell_scripts/halt_ethermint.sh",
                       instance.key_name,
                       instance.public_ip_address)
+
+
+def print_nodes(nodes):
+    """
+    notify cli user using print
+    :param nodes: boto3 instances
+    """
+    logger.info("Ethermint instances:")
+    for node in nodes:
+        region = node.region_name  # region is more useful for further processing
+        print "{} {}".format(region, node.id)
+    logger.info("Check ethermint alive (printing to console really...) with isalive <region> <instance id>")
