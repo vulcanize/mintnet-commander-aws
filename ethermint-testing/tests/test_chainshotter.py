@@ -13,28 +13,21 @@ ETHERMINT_P2P_PORT = 46656
 
 
 @pytest.fixture()
-def mockospath(monkeypatch):
-    # monkeypatch.setattr(os.path, 'exists', lambda path: True)
-    pass
-
-
-@pytest.fixture()
-def chainshotter(mockospath, mockossystem, mocksubprocess):
+def chainshotter(mockossystem, mocksubprocess):
     return Chainshotter()
 
 
 @pytest.fixture()
-def prepare_chainshot(chainmaker, chainshotter):
-    def _prepare_chainshot(regions):
-        instances = chainmaker.create_ethermint_network(regions, "HEAD", "master_pub_key")
-        return chainshotter.chainshot("Test", instances)
+def prepare_chainshot(chainmaker, chainshotter, mockregions):
 
-    return _prepare_chainshot
+    instances = chainmaker.create_ethermint_network(mockregions, "HEAD", "master_pub_key")
+    return chainshotter.chainshot("Test", instances)
 
 
+@pytest.mark.parametrize('regionscount', [2])
 def test_chainshot_halts_restarts(chainshotter, mocksubprocess, mockregions, chainmaker):
     # 2 instances to check if halt and start are in right order
-    [instance1, instance2] = chainmaker.create_ethermint_network(mockregions, "HEAD", "master_pub_key")[:2]
+    [instance1, instance2] = chainmaker.create_ethermint_network(mockregions, "HEAD", "master_pub_key")
     mocksubprocess.reset_mock()
 
     chainshotter.chainshot("Test", [instance1, instance2])
@@ -129,8 +122,9 @@ def test_starting_instances_on_thaw(chainshotter, prepare_chainshot, monkeypatch
     #     Chainmaker.create_ec2s_from_json.assert_has_calls([c["instance"]])
 
 
-def test_attaching_ebs_snapshots_on_thaw(chainshotter, prepare_chainshot, mockregions):
-    chainshot = prepare_chainshot(mockregions)
+@pytest.mark.parametrize('regionscount', [2])
+def test_attaching_ebs_snapshots_on_thaw(chainshotter, prepare_chainshot):
+    chainshot = prepare_chainshot
     instances = chainshotter.thaw(chainshot)
 
     snapshot_ids = [inst["snapshot"]["id"] for inst in chainshot["instances"]]
@@ -146,22 +140,22 @@ def test_attaching_ebs_snapshots_on_thaw(chainshotter, prepare_chainshot, mockre
                 assert bdm["DeviceName"] == DEFAULT_DEVICE
 
 
-def test_mounting_ebs_and_running_on_thaw(chainshotter, prepare_chainshot, mocksubprocess, mockregions):
+@pytest.mark.parametrize('regionscount', [2])
+def test_mounting_ebs_and_running_on_thaw(chainshotter, mocksubprocess, prepare_chainshot):
     # For now testing if the ssh command is correct
-    mockregions = mockregions[:1]  # trim
-    chainshot = prepare_chainshot(mockregions)
+    chainshot = prepare_chainshot
     mocksubprocess.reset_mock()
-    [instance] = chainshotter.thaw(chainshot)
+    [instance] = chainshotter.thaw(chainshot)[:1]
 
     args_list = mocksubprocess.call_args_list
-    assert len(args_list) == 2
+    assert len(args_list) == 4
 
     assert args_list[0] == mock.call("ssh -o StrictHostKeyChecking=no -i {0} ubuntu@{1} "
                                      "'bash -s' < shell_scripts/mount_snapshot.sh".format(
         get_shh_key_file(instance.key_name),
         instance.public_ip_address), shell=True)
 
-    assert args_list[1] == mock.call("ssh -o StrictHostKeyChecking=no -i {0} ubuntu@{1} "
+    assert args_list[2] == mock.call("ssh -o StrictHostKeyChecking=no -i {0} ubuntu@{1} "
                                      "'bash -s' < shell_scripts/run_ethermint.sh".format(
         get_shh_key_file(instance.key_name),
         instance.public_ip_address), shell=True)
@@ -172,10 +166,11 @@ def test_starting_ethermint_on_thaw(chainshotter):
     pass
 
 
-def test_invalid_thaws(chainshotter, prepare_chainshot):
+@pytest.mark.parametrize('regionscount', [2])
+def test_invalid_thaws(chainshotter, prepare_chainshot, mockregions):
     # InvalidSnapshot
-    chainshot = prepare_chainshot([DEFAULT_REGION])
-    ec2_client = boto3.client('ec2', region_name=DEFAULT_REGION)
+    chainshot = prepare_chainshot
+    ec2_client = boto3.client('ec2', region_name=mockregions[0])
     ec2_client.delete_snapshot(SnapshotId=chainshot["instances"][0]["snapshot"]["id"])
     with pytest.raises(ClientError):
         chainshotter.thaw(chainshot)

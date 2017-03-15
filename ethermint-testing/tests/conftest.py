@@ -103,8 +103,14 @@ def fake_ethermint_files(tmp_files_dir, monkeypatch):
 
 
 @pytest.fixture()
-def mockregions():
-    return ["ap-northeast-1", "ap-northeast-1", "ap-northeast-1", "eu-central-1", "us-west-1", "us-west-1"]
+def regionscount():
+    return 6
+
+
+@pytest.fixture()
+def mockregions(regionscount):
+    return ["ap-northeast-1", "us-west-1", "ap-northeast-1",
+            "ap-northeast-1", "eu-central-1", "us-west-1"][:regionscount]
 
 
 @pytest.fixture()
