@@ -223,13 +223,13 @@ class RegionInstancePair:
     def __init__(self, region_name, instance_id):
         self.region_name = region_name
         self.id = instance_id
-        self.key_name = self.instance.key_name
-        self.public_ip_address = self.instance.public_ip_address
-        self.block_device_mappings = self.instance.block_device_mappings
-        self.image_id = self.instance.image_id
-        self.security_groups = self.instance.security_groups
-        self.tags = self.instance.tags
-        self.volumes = self.instance.volumes
+
+        # borrow the properties from the boto3 Instance defined by region/id
+        # set new properties on RegionInstancePair class by copying properties from self.instance
+        for prop in ['key_name', 'public_ip_address', 'block_device_mappings', 'image_id', 'security_groups',
+                     'tags', 'volumes']:
+            iife = lambda iife_prop: lambda innerself: getattr(innerself.instance, iife_prop)
+            setattr(self.__class__, prop, property(iife(prop)))
 
     @staticmethod
     def from_boto(instance):
