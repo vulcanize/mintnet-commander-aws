@@ -29,8 +29,8 @@ def create_mock_amis(mockami, mockamibuilder):
     mockamibuilder.create_ami.side_effect = _create
 
 
-def test_creating_ethermint_network(chainmaker, mockami, mockregions):
-    nodes = chainmaker.create_ethermint_network(mockregions, "HEAD", "master_pub_key")
+def test_creating_ethermint_network(chainmaker, mockami, mockregions, ethermint_version):
+    nodes = chainmaker.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
 
     distinct_regions = set(mockregions)
     instances_in_regions = {}
@@ -51,9 +51,9 @@ def test_creating_ethermint_network_failures(chainmaker):
     pass
 
 
-def test_ethermint_network_security_group(chainmaker, mockregions):
+def test_ethermint_network_security_group(chainmaker, mockregions, ethermint_version):
     # test if nodes in the network can talk to each other (are in the same security group)
-    nodes = chainmaker.create_ethermint_network(mockregions, "HEAD", "master_pub_key")
+    nodes = chainmaker.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
 
     for node in nodes:
         ec2 = boto3.resource('ec2', region_name=node.region_name)
@@ -66,18 +66,18 @@ def test_ethermint_network_security_group(chainmaker, mockregions):
         assert sorted(security_group_ports) == sorted(DEFAULT_PORTS)
 
 
-def test_ethermint_network_creates_AMIs(chainmaker, mockregions, mockamibuilder):
-    ethermint_version = "HEAD"
+def test_ethermint_network_creates_AMIs(chainmaker, mockregions, mockamibuilder, ethermint_version):
+    compare_ami_name = "test_ethermint{}_ami-ssh".format(ethermint_version[:8])
     chainmaker.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
 
     distinct_regions = set(mockregions)
     for region in distinct_regions:
-        mockamibuilder.create_ami.assert_any_call(ethermint_version, "test_ethermint_ami-ssh", regions=[region])
+        mockamibuilder.create_ami.assert_any_call(ethermint_version, compare_ami_name, regions=[region])
 
 
 @pytest.mark.parametrize('regionscount', [2])
-def test_ethermint_network_uses_existing_AMIs_when_exist(chainmaker, mockregions, mockamibuilder, create_mock_amis):
-    ethermint_version = "HEAD"
+def test_ethermint_network_uses_existing_AMIs_when_exist(chainmaker, mockregions, mockamibuilder, create_mock_amis,
+                                                         ethermint_version):
 
     chainmaker.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
     mockamibuilder.create_ami.reset_mock()
@@ -85,10 +85,25 @@ def test_ethermint_network_uses_existing_AMIs_when_exist(chainmaker, mockregions
     chainmaker.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
     mockamibuilder.create_ami.assert_not_called()
 
+    chainmaker.create_ethermint_network(mockregions, ethermint_version, "master_pub_key", no_ami_cache=True)
+    mockamibuilder.create_ami.assert_called()
+
 
 @pytest.mark.parametrize('regionscount', [2])
-def test_ethermint_network_find_AMI(chainmaker, mockregions, mockamibuilder, create_mock_amis):
-    ethermint_version = "HEAD"
+def test_ethermint_new_AMIs_for_ethermint_versions(chainmaker, mockregions, mockamibuilder, create_mock_amis,
+                                                   ethermint_version, mocksubprocess):
+
+    chainmaker.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
+    mockamibuilder.create_ami.reset_mock()
+
+    other_version = "otherohterotherohterotherohter"
+    mocksubprocess.side_effect = lambda *args, **kwargs: other_version if "get_ethermint_version.sh" in args[0] else ''
+    chainmaker.create_ethermint_network(mockregions, other_version, "master_pub_key")
+    mockamibuilder.create_ami.assert_called()
+
+
+@pytest.mark.parametrize('regionscount', [2])
+def test_ethermint_network_find_AMI(chainmaker, mockregions, mockamibuilder, create_mock_amis, ethermint_version):
 
     chainmaker.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
     mockamibuilder.create_ami.reset_mock()
@@ -97,12 +112,14 @@ def test_ethermint_network_find_AMI(chainmaker, mockregions, mockamibuilder, cre
     mockregions += [new_region]
 
     chainmaker.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
-    mockamibuilder.create_ami.called_once_with(ethermint_version, "test_ethermint_ami-ssh", regions=[new_region])
+    calls = mockamibuilder.create_ami.call_args_list
+    assert len(calls) == 1
+    calls[0][1]['regions'] == [new_region]
 
 
 @pytest.mark.parametrize('regionscount', [2])
-def test_ethermint_network_attaches_volumes(chainmaker, mockregions):
-    nodes = chainmaker.create_ethermint_network(mockregions, "HEAD", "master_pub_key")
+def test_ethermint_network_attaches_volumes(chainmaker, mockregions, ethermint_version):
+    nodes = chainmaker.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
 
     for node in nodes:
         assert len(node.block_device_mappings) == 2  # the default drive and our additional drive
@@ -115,10 +132,10 @@ def test_ethermint_network_attaches_volumes(chainmaker, mockregions):
 
 
 @pytest.mark.parametrize('regionscount', [2])
-def test_ethermint_network_mounts_volumes(chainmaker, mockregions, mocksubprocess):
+def test_ethermint_network_mounts_volumes(chainmaker, mockregions, mocksubprocess, ethermint_version):
     # mount has to be done manually since the boto3 interface does not allow to do this
     # for now, testing if ssh command is correct
-    nodes = chainmaker.create_ethermint_network(mockregions, "HEAD", "master_pub_key")
+    nodes = chainmaker.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
 
     for node in nodes:
         mocksubprocess.assert_any_call("ssh -o StrictHostKeyChecking=no -i {0} ubuntu@{1} "
@@ -128,8 +145,8 @@ def test_ethermint_network_mounts_volumes(chainmaker, mockregions, mocksubproces
 
 
 @pytest.mark.parametrize('regionscount', [2])
-def test_ethermint_network_update_roster(chainmaker, mockregions, mockossystem):
-    nodes = chainmaker.create_ethermint_network(mockregions, "HEAD", "master_pub_key", update_salt_roster=True)
+def test_ethermint_network_update_roster(chainmaker, mockregions, mockossystem, ethermint_version):
+    nodes = chainmaker.create_ethermint_network(mockregions, ethermint_version, "master_pub_key", update_salt_roster=True)
     nodes_ips = [node.public_ip_address for node in nodes]
 
     filepath = None
@@ -149,8 +166,9 @@ def test_ethermint_network_update_roster(chainmaker, mockregions, mockossystem):
 
 
 @pytest.mark.parametrize('regionscount', [2])
-def test_ethermint_network_prepares_for_ethermint(chainmaker, mockregions, mocksubprocess, mockossystem, tmp_files_dir):
-    nodes = chainmaker.create_ethermint_network(mockregions, "HEAD", "master_pub_key")
+def test_ethermint_network_prepares_for_ethermint(chainmaker, mockregions, mocksubprocess, mockossystem, tmp_files_dir,
+                                                  ethermint_version):
+    nodes = chainmaker.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
     ethermint_files_location = os.path.join(tmp_files_dir, "ethermint")
 
     for i, node in enumerate(nodes):
@@ -172,8 +190,9 @@ def test_ethermint_network_prepares_for_ethermint(chainmaker, mockregions, mocks
 
 
 @pytest.mark.parametrize('regionscount', [2])
-def test_ethermint_network_runs_ethermint(chainmaker, mockregions, mocksubprocess):
-    nodes = chainmaker.create_ethermint_network(mockregions, "HEAD", "master_pub_key")
+def test_ethermint_network_runs_ethermint(chainmaker, mockregions, mocksubprocess,
+                                          ethermint_version):
+    nodes = chainmaker.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
 
     first = None
     for node in nodes:
@@ -191,8 +210,8 @@ def test_ethermint_network_runs_ethermint(chainmaker, mockregions, mocksubproces
 
 
 @pytest.mark.parametrize('regionscount', [2])
-def test_isalive_commands(chainmaker, mocksubprocess, mockregions):
-    nodes = chainmaker.create_ethermint_network(mockregions, "HEAD", "master_pub_key")
+def test_isalive_commands(chainmaker, mocksubprocess, mockregions, ethermint_version):
+    nodes = chainmaker.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
 
     mocksubprocess.reset_mock()
     mocksubprocess.side_effect = ["a", "b"]
@@ -218,8 +237,8 @@ def test_isalive_commands(chainmaker, mocksubprocess, mockregions):
 
 
 @pytest.mark.parametrize('regionscount', [2])
-def test_isalive_dead(chainmaker, mocksubprocess, mockregions):
-    nodes = chainmaker.create_ethermint_network(mockregions, "HEAD", "master_pub_key")
+def test_isalive_dead(chainmaker, mocksubprocess, mockregions, ethermint_version):
+    nodes = chainmaker.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
 
     mocksubprocess.side_effect = ["a", "a"]  # same output
     result = chainmaker.isalive(RegionInstancePair(mockregions[0], nodes[0].id))
@@ -229,14 +248,14 @@ def test_isalive_dead(chainmaker, mocksubprocess, mockregions):
 
 @pytest.mark.parametrize('regionscount', [2])
 @pytest.mark.parametrize("pathcheck", ["tendermint version", "ethermint -h", "packer version"])
-def test_check_path(chainmaker, mockregions, mockossystem, pathcheck):
-    chainmaker.create_ethermint_network(mockregions, "HEAD", "master_pub_key")
+def test_check_path(chainmaker, mockregions, mockossystem, pathcheck, ethermint_version):
+    chainmaker.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
 
     mockossystem.assert_any_call(pathcheck)
 
 
-def test_chainmaker_imports_keypairs(chainmaker, mockregions):
-    chainmaker.create_ethermint_network(mockregions, "HEAD", "master_pub_key")
+def test_chainmaker_imports_keypairs(chainmaker, mockregions, ethermint_version):
+    chainmaker.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
 
     keypairs = []
     for region in mockregions:
@@ -252,12 +271,12 @@ def test_chainmaker_imports_keypairs(chainmaker, mockregions):
 
 
 @pytest.mark.parametrize('regionscount', [2])
-def test_chainmaker_calls_mints(monkeypatch, mockossystem, mocksubprocess, mockregions,
+def test_chainmaker_calls_mints(monkeypatch, mockossystem, mocksubprocess, mockregions, ethermint_version,
                                 mockamibuilder, tmp_files_dir, moto):
     # mock out all reading of *mint calls results
     monkeypatch.setattr('chainmaker.fill_validators', MagicMock)
     chainmaker = Chainmaker()
-    chainmaker.create_ethermint_network(mockregions, "HEAD", "master_pub_key")
+    chainmaker.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
 
     calls = mockossystem.call_args_list
 
@@ -266,3 +285,29 @@ def test_chainmaker_calls_mints(monkeypatch, mockossystem, mocksubprocess, mockr
 
     assert len(ethermint_calls) == 1
     assert len(tendermint_calls) == len(mockregions)
+
+
+@pytest.mark.parametrize('regionscount', [1])
+def test_checks_ethermint_version(chainmaker, mocksubprocess, mockregions, ethermint_version):
+    # we're intercepting the call to get remote ethermint version to pretend its right or wrong
+
+    # good version
+    chainmaker.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
+
+    # unexpectedly, bad version
+    mocksubprocess.side_effect = lambda *args, **kwargs: "badbadbad" if "get_ethermint_version.sh" in args[0] else ''
+    with pytest.raises(RuntimeError):
+        chainmaker.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
+
+
+@pytest.mark.parametrize('regionscount', [1])
+def test_local_ethermint_version(chainmaker, mocksubprocess, mockregions):
+    def local_ethermint_version(*args, **kwargs):
+        if "get_ethermint_version.sh" in args[0] or "rev-parse HEAD" in args[0]:
+            return "01230123012301230123012301230123"
+        else:
+            return ''
+    mocksubprocess.side_effect = local_ethermint_version
+
+    # good version
+    chainmaker.create_ethermint_network(mockregions, "local", "master_pub_key")

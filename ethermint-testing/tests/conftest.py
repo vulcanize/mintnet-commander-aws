@@ -13,6 +13,7 @@ import fill_validators
 from amibuilder import AMIBuilder
 
 SECURITY_GROUP_NAME = "securitygroup"
+ETHERMINT_VERSION = "01230123012301230123012301230123"
 
 
 @pytest.fixture()
@@ -35,8 +36,18 @@ def mockossystem(monkeypatch):
 
 
 @pytest.fixture()
-def mocksubprocess(monkeypatch):
-    mock = MagicMock(subprocess.check_output, return_value="")
+def ethermint_version():
+    return ETHERMINT_VERSION
+
+@pytest.fixture()
+def mocksubprocess(monkeypatch, ethermint_version):
+    def _responses(*args, **kwargs):
+        if "get_ethermint_version" in args[0]:
+            return ethermint_version
+        else:
+            return ""
+
+    mock = MagicMock(subprocess.check_output, side_effect=_responses)
     monkeypatch.setattr(subprocess, 'check_output', mock)
     return mock
 
