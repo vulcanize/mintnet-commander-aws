@@ -1,5 +1,6 @@
 import logging
 import os
+import subprocess
 import time
 from datetime import datetime
 from uuid import uuid4
@@ -86,6 +87,19 @@ class Chainmaker:
                 "scp -o StrictHostKeyChecking=no -C -i {} {} ubuntu@{}:/ethermint/data/priv_validator.json".format(
                     get_shh_key_file(instance.key_name), src_validator_path, instance.public_ip_address))
 
+    @staticmethod
+    def _fix_ethermint_version(ethermint_version):
+        if ethermint_version == "local":
+            try:
+                output = subprocess.check_output("git -C $GOPATH/src/github.com/tendermint/ethermint rev-parse HEAD",
+                                                 shell=True)
+                return output.strip()
+            except subprocess.CalledProcessError as e:
+                raise IOError("you have chosen \"local\" as your ethermint version, but getting commit"
+                              "hash failed: {}".format(e.message))
+        else:
+            return ethermint_version
+
     def create_ethermint_network(self, regions, ethermint_version, master_pub_key, update_salt_roster=False,
                                  name_root="test", no_ami_cache=False):
         """
@@ -100,6 +114,8 @@ class Chainmaker:
         for check in ["tendermint version", "ethermint -h", "packer version"]:
             if not os.system(check) == 0:
                 raise EnvironmentError("{} not found in path".format(check))
+
+        ethermint_version = self._fix_ethermint_version(ethermint_version)
 
         distinct_regions = set(regions)
 
@@ -121,7 +137,8 @@ class Chainmaker:
                 amis[region] = images[0].id
             else:
                 logger.info("Creating AMI for {} in region {}".format(ethermint_version, region))
-                ami_id = ami_builder.create_ami(ethermint_version, name_root + "_ethermint_ami-ssh",
+                full_name = "{}_ethermint{}_ami-ssh".format(name_root, ethermint_version[:8])
+                ami_id = ami_builder.create_ami(ethermint_version, full_name,
                                                 regions=[region])
                 amis[region] = ami_id
 
@@ -162,6 +179,18 @@ class Chainmaker:
             self._update_salt(nodes)
         self._prepare_ethermint(nodes)
         run_ethermint(nodes)
+
+        for node in nodes:
+            logger.info("Checking ethermint version {} on {}".format(ethermint_version,
+                                                                     node.id))
+            real_version = run_sh_script("shell_scripts/get_ethermint_version.sh",
+                                         node.key_name,
+                                         node.public_ip_address)
+            real_version = real_version.strip()
+            if real_version != ethermint_version:
+                raise RuntimeError("Instance {} appears to be running ethermint {} instead of {}".format(
+                    node.id, real_version, ethermint_version
+                ))
 
         for node in nodes:
             logger.info("Ethermint instance ID: {} in {}".format(node.id, node.placement["AvailabilityZone"]))

@@ -37,11 +37,7 @@ sudo apt-get install libusb-dev
 
 go get github.com/tendermint/ethermint/cmd/ethermint
 
-# user can pass certain ethermint version by providing a commit hash
-if [ ${ETHERMINT:="HEAD"} = "HEAD" ] ; then
-    echo "Using ethermint HEAD"
-else
-    echo "Using ethermint $ETHERMINT"
-    cd $GOPATH/src/github.com/tendermint/ethermint && git checkout $ETHERMINT
-    cd $GOPATH/src/github.com/tendermint/ethermint && go install -x github.com/tendermint/ethermint/cmd/ethermint
-fi
+# user must pass certain ethermint version by providing a commit hash
+echo "Using ethermint $ETHERMINT"
+git -C $GOPATH/src/github.com/tendermint/ethermint checkout $ETHERMINT
+go install -x github.com/tendermint/ethermint/cmd/ethermint

@@ -36,8 +36,6 @@ class AMIBuilder:
         assert len(regions) > 0
 
         config = packer_ethermint_config(ethermint_version_hash)
-        if not ethermint_version_hash:
-            ethermint_version_hash = "HEAD"
 
         builder = {
             "type": "amazon-ebs",

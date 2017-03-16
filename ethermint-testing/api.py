@@ -31,7 +31,8 @@ def ethermint_testing():
 @click.option('--update-roster/--no-update-roster', default=False, help='Update /etc/salt/roster locally?')
 @click.option('--regions', '-r', required=True, default=None, type=click.STRING, multiple=True,
               help='A list of regions; one instance is created per region')
-@click.option('--ethermint-version', default="HEAD", help='The hash of ethermints commit')
+@click.option('--ethermint-version', default="local", help='The hash of ethermints commit or local to use '
+                                                           'local version in GOPATH (default)')
 @click.option('--master-pkey-name', required=True, help='')
 @click.option('--name-root', default="test", help='Root of the names of amis to create')
 @click.option('--num-processes', '-n', default=None, type=click.INT,
