@@ -87,7 +87,7 @@ class Chainmaker:
                     get_shh_key_file(instance.key_name), src_validator_path, instance.public_ip_address))
 
     def create_ethermint_network(self, regions, ethermint_version, master_pub_key, update_salt_roster=False,
-                                 name_root="test"):
+                                 name_root="test", no_ami_cache=False):
         """
         Creates an ethermint network consisting of multiple ethermint nodes
         :param master_pub_key: master public key to be added to authorized keys
@@ -110,6 +110,12 @@ class Chainmaker:
             ec2 = boto3.resource('ec2', region_name=region)
             images = list(ec2.images.filter(Owners=['self'], Filters=[{'Name': 'tag:Ethermint',
                                                                        'Values': [ethermint_version]}]))
+            if len(images) > 0 and no_ami_cache:
+                for image in images:
+                    logger.info("Deregistering AMI for {} in region {}".format(ethermint_version, region))
+                    image.deregister()
+                images = []
+
             if len(images) > 0:
                 logger.info("AMI for {} in region {} already exists".format(ethermint_version, region))
                 amis[region] = images[0].id

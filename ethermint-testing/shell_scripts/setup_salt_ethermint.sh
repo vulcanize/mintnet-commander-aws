@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -x
+set -euo xtrace
 
 # wait for ec2 to become fully up
 echo "waiting 180 seconds for cloud-init to update /etc/apt/sources.list"
@@ -14,8 +14,8 @@ sudo apt-get install -y build-essential git python
 
 # install golang 1.7
 sudo curl -O https://storage.googleapis.com/golang/go1.7.4.linux-amd64.tar.gz
-sudo tar -xvf go1.7.4.linux-amd64.tar.gz
-sudo mv go /usr/local
+sudo tar -xf go1.7.4.linux-amd64.tar.gz
+sudo mv go /usr/local/bin
 go version
 
 # prepare GOPATH
@@ -23,7 +23,7 @@ export GOROOT=/usr/local/go
 mkdir -p $HOME/go
 export GOPATH=$HOME/go
 mkdir -p $GOPATH/src $GOPATH/bin
-sudo chmod -R 777 $GOPATH
+sudo chown -R ubuntu:ubuntu $HOME
 export PATH=$GOPATH/bin:/usr/local/go/bin:$PATH
 
 echo "export GOROOT=/usr/local/go" >> $HOME/.bashrc

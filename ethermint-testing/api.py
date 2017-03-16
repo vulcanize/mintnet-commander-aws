@@ -36,14 +36,16 @@ def ethermint_testing():
 @click.option('--name-root', default="test", help='Root of the names of amis to create')
 @click.option('--num-processes', '-n', default=None, type=click.INT,
               help='specify >1 if you want to run instance creation in parallel using multiprocessing')
-def create(update_roster, regions, ethermint_version, master_pkey_name, name_root, num_processes):
+@click.option('--no-ami-cache', is_flag=True, help='Force rebuilding of Ethermint AMIs')
+def create(update_roster, regions, ethermint_version, master_pkey_name, name_root, num_processes, no_ami_cache):
     """
     Creates an ethermint network consisting of ethermint nodes
     """
     with open(os.path.join(DEFAULT_FILES_LOCATION, master_pkey_name + '.key.pub'), 'r') as f:
         master_pub_key = f.read()
     chainmaker = Chainmaker(num_processes=num_processes)
-    nodes = chainmaker.create_ethermint_network(regions, ethermint_version, master_pub_key, update_roster, name_root)
+    nodes = chainmaker.create_ethermint_network(regions, ethermint_version, master_pub_key, update_roster, name_root,
+                                                no_ami_cache=no_ami_cache)
 
     print_nodes(nodes)
 
