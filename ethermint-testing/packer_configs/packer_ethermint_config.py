@@ -8,18 +8,14 @@ packer_ethermint_config = lambda ethermint_version_hash: {
     'provisioners': [
         {
             "type": "shell",
-            "execute_command": "sudo {{.Path}}",
             "inline": [
                 "echo '{{user `master_public_key`}}' >> .ssh/authorized_keys",
             ],
         },
         {
             "type": "shell",
-            "execute_command": "sudo {{.Path}}",
             "environment_vars": ["ETHERMINT={}".format(ethermint_version_hash)],
-            "scripts": [
-                "shell_scripts/setup_salt_ethermint.sh",
-            ]
+            "script": "shell_scripts/setup_salt_ethermint.sh",
         },
     ]
 }

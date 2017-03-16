@@ -15,16 +15,18 @@ sudo apt-get install -y build-essential git python
 # install golang 1.7
 sudo curl -O https://storage.googleapis.com/golang/go1.7.4.linux-amd64.tar.gz
 sudo tar -xf go1.7.4.linux-amd64.tar.gz
-sudo mv go /usr/local/bin
+sudo mv go /usr/local
+export GOROOT=/usr/local/go
+export PATH=$GOROOT/bin:$PATH
+
 go version
 
 # prepare GOPATH
-export GOROOT=/usr/local/go
 mkdir -p $HOME/go
 export GOPATH=$HOME/go
 mkdir -p $GOPATH/src $GOPATH/bin
 sudo chown -R ubuntu:ubuntu $HOME
-export PATH=$GOPATH/bin:/usr/local/go/bin:$PATH
+export PATH=$GOPATH/bin:$PATH
 
 echo "export GOROOT=/usr/local/go" >> $HOME/.bashrc
 echo "export GOPATH=$HOME/go" >> $HOME/.bashrc
