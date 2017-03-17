@@ -114,7 +114,7 @@ def test_ethermint_network_find_AMI(chainmaker, mockregions, mockamibuilder, cre
     chainmaker.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
     calls = mockamibuilder.create_ami.call_args_list
     assert len(calls) == 1
-    calls[0][1]['regions'] == [new_region]
+    assert calls[0][1]['regions'] == [new_region]
 
 
 @pytest.mark.parametrize('regionscount', [2])
