@@ -185,6 +185,6 @@ def test_thaw_printable(chainshotter, prepare_chainshot, capsys):
     for i, line in enumerate(out.split('\n')):
         if line == '':
             continue
-        region, instance_id = line.split(' ')
+        region, instance_id = line.split(':')
         assert region == instances[i].region_name
         assert instance_id == instances[i].id

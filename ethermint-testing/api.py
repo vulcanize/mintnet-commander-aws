@@ -51,16 +51,17 @@ def create(update_roster, regions, ethermint_version, master_pkey_name, name_roo
     print_nodes(nodes)
 
 
-@ethermint_testing.command()
+@ethermint_testing.command(help='Pass as arguments the list of ethermint instance objects, '
+                                'supplied in "region:id" pairs')
 @click.option('--name', default="Ethermint-network-chainshot", help='The name of the chainshot')
-@click.option('--instances', '-i', required=True, default=[], type=(unicode, unicode),
-              multiple=True, help='The list of ethermint instance objects, supplied in "region id" paris')
 @click.option('--output-file-path', default="chainshot.json", help='Output chainshot file path (json)')
+@click.argument('instances',
+                type=unicode, nargs=-1)
 def chainshot(name, instances, output_file_path):
     """
     Allows to create a chainshot of a network consisting of multiple ec2 instances
     """
-    instances = [RegionInstancePair(*instance) for instance in instances]
+    instances = [RegionInstancePair(*instance.split(':')) for instance in instances]
     chainshot_data = Chainshotter().chainshot(name, instances)
     with open(output_file_path, 'w') as f:
         json.dump(chainshot_data, f, indent=2)
@@ -83,10 +84,10 @@ def thaw(chainshot_file, num_processes):
 
 
 @ethermint_testing.command(help="quick ugly check if the consensus on the instance is making progress"
-                                "usage: isalive region instance_id")
-@click.argument('instance', type=(unicode, unicode))
+                                "usage: isalive region:instance_id")
+@click.argument('instance', type=unicode)
 def isalive(instance):
-    print Chainmaker().isalive(RegionInstancePair(*instance))
+    print Chainmaker().isalive(RegionInstancePair(*instance.split(':')))
 
 
 cli = click.CommandCollection(sources=[ethermint_testing])
