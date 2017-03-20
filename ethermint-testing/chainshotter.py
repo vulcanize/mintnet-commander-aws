@@ -15,11 +15,10 @@ class Chainshotter:
     def __init__(self, num_processes=None):
         self.instance_creator = InstanceCreator(num_processes)
 
-    def chainshot(self, name, region_instances, clean_up=False):
+    def chainshot(self, name, region_instances):
         """
         Allows to snapshot a chain and save a json file with all chainshot info
 
-        :param clean_up: indicates if instances should be terminated after snapshot is taken
         :param name: the name (ID) of the snapshot
         :param instances_ids_map: the map of instance IDs pointing to regions where they're located
         :return: a dictionary containing the snapshot info
@@ -50,13 +49,6 @@ class Chainshotter:
             snapshot_info = self._snapshot(instance, volume, pair.ec2)
 
             results["instances"].append(snapshot_info)
-
-            if clean_up:
-                run_sh_script("shell_scripts/unmount_new_volume.sh", instance.key_name, instance.public_ip_address)
-                instance.detach_volume(VolumeId=volume.id, Force=True)  # FIXME the device is stuck in detaching state
-                wait_for_detached(volume, instance)
-                volume.delete()
-                instance.terminate()
 
         run_ethermint(instances)
 
