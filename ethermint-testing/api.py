@@ -4,7 +4,7 @@ import os
 
 import click
 
-from chainmaker import Chainmaker, RegionInstancePair
+from chainmanager import Chainmanager, RegionInstancePair
 from chainshotter import Chainshotter
 from settings import DEFAULT_FILES_LOCATION
 from utils import print_nodes
@@ -44,8 +44,8 @@ def create(update_roster, regions, ethermint_version, master_pkey_name, name_roo
     """
     with open(os.path.join(DEFAULT_FILES_LOCATION, master_pkey_name + '.key.pub'), 'r') as f:
         master_pub_key = f.read()
-    chainmaker = Chainmaker(num_processes=num_processes)
-    nodes = chainmaker.create_ethermint_network(regions, ethermint_version, master_pub_key, update_roster, name_root,
+    chainmanager = Chainmanager(num_processes=num_processes)
+    nodes = chainmanager.create_ethermint_network(regions, ethermint_version, master_pub_key, update_roster, name_root,
                                                 no_ami_cache=no_ami_cache)
 
     print_nodes(nodes)
@@ -88,7 +88,7 @@ def thaw(chainshot_file, num_processes):
 @click.argument('chain', type=unicode)
 def isalive(chain):
     #read chain data from json file, pass the query details on to:
-    print Chainmaker().isalive(chain)
+    print Chainmanager().isalive(chain)
 
     # remove per "instances" version of the query and make quireying aliveness without metadata impossible
     # returns (prints) True if all nodes have their last block within a specified threshold (blocktime * 10?,
@@ -121,6 +121,11 @@ def status(chain):
         'height???': 34,
         'age': "fdfdsfd"
     }
+
+
+# jesli to jest ethermint, to dodatkowo sprawdzamy z geth czy informacje sie zgadzaja i tylko wtedy jest isalive
+# create, chainshot powinny zwracac identycznego jsona, ktorego potem mozna uzyc jako argumnet chain
+# ten json powinien explicite zawierac informacje o tym, jaki to jest chain (ethermint)
 
 
 # live chain json-example, json file which describes the meta data about a running chain

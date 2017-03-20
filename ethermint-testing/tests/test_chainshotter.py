@@ -8,7 +8,7 @@ import pytest
 from botocore.exceptions import ClientError
 from mock import MagicMock
 
-from chainmaker import RegionInstancePair
+from chainmanager import RegionInstancePair
 from chainshotter import Chainshotter
 from settings import DEFAULT_REGION, DEFAULT_DEVICE
 from utils import get_shh_key_file, print_nodes
@@ -22,16 +22,16 @@ def chainshotter(mockossystem, mocksubprocess):
 
 
 @pytest.fixture()
-def prepare_chainshot(chainmaker, chainshotter, mockregions, ethermint_version):
+def prepare_chainshot(chainmanager, chainshotter, mockregions, ethermint_version):
 
-    instances = chainmaker.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
+    instances = chainmanager.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
     return chainshotter.chainshot("Test", instances)
 
 
 @pytest.mark.parametrize('regionscount', [2])
-def test_chainshot_halts_restarts(chainshotter, mocksubprocess, mockregions, chainmaker, ethermint_version):
+def test_chainshot_halts_restarts(chainshotter, mocksubprocess, mockregions, chainmanager, ethermint_version):
     # 2 instances to check if halt and start are in right order
-    [instance1, instance2] = chainmaker.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
+    [instance1, instance2] = chainmanager.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
     mocksubprocess.reset_mock()
 
     chainshotter.chainshot("Test", [instance1, instance2])
@@ -57,8 +57,8 @@ def test_chainshot_halts_restarts(chainshotter, mocksubprocess, mockregions, cha
         ETHERMINT_P2P_PORT), shell=True)
 
 
-def test_chainshot_creates_snapshots(chainshotter, chainmaker, mockregions, ethermint_version):
-    instances = chainmaker.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
+def test_chainshot_creates_snapshots(chainshotter, chainmanager, mockregions, ethermint_version):
+    instances = chainmanager.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
     chainshotter.chainshot("Test", instances)
     total_snapshots = 0
     for region in set(mockregions):
@@ -70,10 +70,10 @@ def test_chainshot_creates_snapshots(chainshotter, chainmaker, mockregions, ethe
     assert total_snapshots == len(instances)
 
 
-def test_chainshot_return_data(chainshotter, chainmaker, mockregions, mockami, ethermint_version):
+def test_chainshot_return_data(chainshotter, chainmanager, mockregions, mockami, ethermint_version):
     time1 = datetime.datetime.utcnow().replace(microsecond=0)
     sleep(1)  # sleeping to put differentiate times from aws with second resolution and make test deterministic
-    instances = chainmaker.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
+    instances = chainmanager.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
     sleep(1)
     time2 = datetime.datetime.utcnow().replace(microsecond=0)
     sleep(1)
@@ -110,7 +110,7 @@ def test_chainshot_return_data(chainshotter, chainmaker, mockregions, mockami, e
 
 def test_invalid_chainshots(chainshotter, monkeypatch):
     # patch to not have complains about the instance missing in aws
-    monkeypatch.setattr('chainmaker.RegionInstancePair.instance', MagicMock())
+    monkeypatch.setattr('chainmanager.RegionInstancePair.instance', MagicMock())
     instances = [RegionInstancePair(DEFAULT_REGION, 'no-instance')]
     # volumes filter returns empty (no ethermint_volume)
     with pytest.raises(IndexError):

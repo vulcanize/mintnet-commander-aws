@@ -2,7 +2,7 @@ import logging
 
 import boto3
 
-from chainmaker import RegionInstancePair
+from chainmanager import RegionInstancePair
 from instance_creator import InstanceCreator
 from settings import DEFAULT_DEVICE
 from utils import run_sh_script, get_region_name, run_ethermint, halt_ethermint
