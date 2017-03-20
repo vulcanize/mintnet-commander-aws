@@ -85,9 +85,61 @@ def thaw(chainshot_file, num_processes):
 
 @ethermint_testing.command(help="quick ugly check if the consensus on the instance is making progress"
                                 "usage: isalive region:instance_id")
-@click.argument('instance', type=unicode)
-def isalive(instance):
-    print Chainmaker().isalive(RegionInstancePair(*instance.split(':')))
+@click.argument('chain', type=unicode)
+def isalive(chain):
+    #read chain data from json file, pass the query details on to:
+    print Chainmaker().isalive(chain)
+
+    # remove per "instances" version of the query and make quireying aliveness without metadata impossible
+    # returns (prints) True if all nodes have their last block within a specified threshold (blocktime * 10?,
+    #  configurable in the future)
+
+    # maybe it should structure the data like this:
+    { 'alive': True,
+      'staleblocktimes': None}
+
+    { 'alive': False,
+      'staleblocktimes': [
+          { 'node1': "isotime"},
+          { 'node2': "isotime2"}
+      ]
+    }
+
+
+def status(chain):
+    returns = {
+        'nodes': [
+            {
+                'instance': {},
+                'name????': 'node1',
+                'height': 34,
+                'lastBlockTime': "isotime",
+                'isAlive': True
+            }
+        ],
+        'isAlive': True,
+        'height???': 34,
+        'age': "fdfdsfd"
+    }
+
+
+# live chain json-example, json file which describes the meta data about a running chain
+# to serve as input to the CLI app (as json file) it needs to support at least
+# jayson['instances']['instance']['id']
+# so a json file like the "chainshot" json without 'snapshot' fields works
+
+
+# for later, for now just for reference
+# def history(chain, fromm, to):
+#     b = {
+#         'nodes': [
+#             {
+#                 'name???': 'node1',
+#                 'blocktimes': ['isotime1', 'isotime2...'],
+#                 'txcounts': [0, 2]
+#             }
+#         ]
+#     }
 
 
 cli = click.CommandCollection(sources=[ethermint_testing])
