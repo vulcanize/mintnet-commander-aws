@@ -8,7 +8,7 @@ from uuid import uuid4
 import boto3
 
 from amibuilder import AMIBuilder
-from chain import RegionInstancePair
+from chain import RegionInstancePair, Chain
 from fill_validators import fill_validators, prepare_validators
 from instance_creator import InstanceCreator
 from settings import DEFAULT_INSTANCE_NAME, \
@@ -110,7 +110,7 @@ class Chainmanager:
         :param name_root: the base of the AMI name
         :param regions: a list of regions where instances will be run; we run 1 instance per region
         :param update_salt_roster: indicates if the system /etc/salt/roster file should be updated
-        :return: a list of all other instances created
+        :return: a chain object
         """
         for check in ["tendermint version", "ethermint -h", "packer version"]:
             if not os.system(check) == 0:
@@ -196,7 +196,7 @@ class Chainmanager:
         for node in nodes:
             logger.info("Ethermint instance ID: {} in {}".format(node.id, node.placement["AvailabilityZone"]))
 
-        return map(RegionInstancePair.from_boto, nodes)
+        return Chain(map(RegionInstancePair.from_boto, nodes))
 
     @staticmethod
     def isalive(chain):
