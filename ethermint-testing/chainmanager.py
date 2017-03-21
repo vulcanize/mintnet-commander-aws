@@ -8,12 +8,13 @@ from uuid import uuid4
 import boto3
 
 from amibuilder import AMIBuilder
+from chain import RegionInstancePair
 from fill_validators import fill_validators, prepare_validators
 from instance_creator import InstanceCreator
 from settings import DEFAULT_INSTANCE_NAME, \
     DEFAULT_SECURITY_GROUP_DESCRIPTION, DEFAULT_PORTS, \
     DEFAULT_FILES_LOCATION
-from utils import get_region_name, create_keyfile, run_sh_script, get_shh_key_file, run_ethermint
+from utils import create_keyfile, run_sh_script, get_shh_key_file, run_ethermint, is_alive
 
 logger = logging.getLogger(__name__)
 
@@ -197,52 +198,28 @@ class Chainmanager:
 
         return map(RegionInstancePair.from_boto, nodes)
 
-    def isalive(self, region_instance):
-        logger.info("Getting log on instance ID: {}".format(region_instance.id))
+    def isalive(self, chain):
+        now = time.time() * 1e9  # nano seconds
+        unsynced_nodes = filter(lambda (region_instance_pair, block): is_alive(block, now=now), chain.instance_block_infos)
+        if unsynced_nodes:
+            return {"alive": False, "staleblocktimes": [{"name": region_instance_pair.instance_name, "time": block.time}
+                                                        for region_instance_pair, block in unsynced_nodes]}
+        return {"alive": True, "staleblocktimes": []}
 
-        output1 = run_sh_script("shell_scripts/log_ethermint.sh",
-                                region_instance.instance.key_name,
-                                region_instance.instance.public_ip_address)
-
-        import time
-        time.sleep(2)
-
-        output2 = run_sh_script("shell_scripts/log_ethermint.sh",
-                                region_instance.instance.key_name,
-                                region_instance.instance.public_ip_address)
-
-        return output1 != output2
-
-
-class RegionInstancePair:
-    """
-    Region and ec2-resource bound instance. Picklable, workable as a boto3 Instance instance
-
-    Main reason for this class is being picklable, which in turn is needed by our current parallel processing
-    """
-    def __init__(self, region_name, instance_id):
-        self.region_name = region_name
-        self.id = instance_id
-
-        # borrow the properties from the boto3 Instance defined by region/id
-        # set new properties on RegionInstancePair class by copying properties from self.instance
-        for prop in ['key_name', 'public_ip_address', 'block_device_mappings', 'image_id', 'security_groups',
-                     'tags', 'volumes']:
-            iife = lambda iife_prop: lambda innerself: getattr(innerself.instance, iife_prop)
-            setattr(self.__class__, prop, property(iife(prop)))
-
-    @staticmethod
-    def from_boto(instance):
-        return RegionInstancePair(get_region_name(instance.placement["AvailabilityZone"]), instance.id)
-
-    @property
-    def instance(self):
-        """
-        use instance.instance to instantiate the instance instance for instance id
-        :return:
-        """
-        return self.ec2.Instance(self.id)
-
-    @property
-    def ec2(self):
-        return boto3.resource('ec2', region_name=self.region_name)
+    def get_status(self, chain):
+        result = {'nodes': []}
+        for region_instance_pair, last_block in chain.instance_block_infos:
+            result['nodes'].append({
+                'instance_id': region_instance_pair.id,
+                'instance_region': region_instance_pair.region_name,
+                'name': region_instance_pair.instance_name,
+                'height': last_block.height,
+                'last_block_time': last_block.time,
+                'last_block_height': last_block.height,
+                'is_alive': is_alive(last_block)
+            })
+        result['is_alive'] = all(node['is_alive'] for node in result['nodes'])
+        heights = map(lambda node: node['height'], result['nodes'])
+        result['height'] = int(float(sum(heights)) / len(heights))
+        result['age'] = None  # TODO: the total time that the chain has been running
+        return result

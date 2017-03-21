@@ -6,7 +6,7 @@ import logging
 
 import time
 
-from settings import DEFAULT_FILES_LOCATION, MAX_MACHINE_CALL_TRIES
+from settings import DEFAULT_FILES_LOCATION, MAX_MACHINE_CALL_TRIES, DEFAULT_LIVENESS_THRESHOLD
 
 logger = logging.getLogger(__name__)
 
@@ -145,3 +145,9 @@ def print_nodes(nodes):
         region = node.region_name  # region is more useful for further processing
         print "{}:{}".format(region, node.id)
     logger.info("Check ethermint alive (printing to console really...) with isalive <region>:<instance id>")
+
+
+def is_alive(block, now=None, liveness_threshold=DEFAULT_LIVENESS_THRESHOLD):
+    if not now:
+        now = time.time() * 1e9  # nano seconds
+    return abs(now - block.time) > liveness_threshold

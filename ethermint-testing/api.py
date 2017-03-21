@@ -4,6 +4,7 @@ import os
 
 import click
 
+from chain import Chain
 from chainmanager import Chainmanager, RegionInstancePair
 from chainshotter import Chainshotter
 from settings import DEFAULT_FILES_LOCATION
@@ -55,8 +56,7 @@ def create(update_roster, regions, ethermint_version, master_pkey_name, name_roo
                                 'supplied in "region:id" pairs')
 @click.option('--name', default="Ethermint-network-chainshot", help='The name of the chainshot')
 @click.option('--output-file-path', default="chainshot.json", help='Output chainshot file path (json)')
-@click.argument('instances',
-                type=unicode, nargs=-1)
+@click.argument('instances', type=unicode, nargs=-1)
 def chainshot(name, instances, output_file_path):
     """
     Allows to create a chainshot of a network consisting of multiple ec2 instances
@@ -83,44 +83,18 @@ def thaw(chainshot_file, num_processes):
     print_nodes(instances)
 
 
-@ethermint_testing.command(help="quick ugly check if the consensus on the instance is making progress"
-                                "usage: isalive region:instance_id")
-@click.argument('chain', type=unicode)
-def isalive(chain):
-    #read chain data from json file, pass the query details on to:
+@ethermint_testing.command(help="check if the consensus on the chain is making progress; Pass pairs of region:id")
+@click.argument('instances', type=unicode, nargs=-1)
+def isalive(instances):
+    chain = Chain([RegionInstancePair(*instance.split(':')) for instance in instances])
     print Chainmanager().isalive(chain)
 
-    # remove per "instances" version of the query and make quireying aliveness without metadata impossible
-    # returns (prints) True if all nodes have their last block within a specified threshold (blocktime * 10?,
-    #  configurable in the future)
 
-    # maybe it should structure the data like this:
-    { 'alive': True,
-      'staleblocktimes': None}
-
-    { 'alive': False,
-      'staleblocktimes': [
-          { 'node1': "isotime"},
-          { 'node2': "isotime2"}
-      ]
-    }
-
-
-def status(chain):
-    returns = {
-        'nodes': [
-            {
-                'instance': {},
-                'name????': 'node1',
-                'height': 34,
-                'lastBlockTime': "isotime",
-                'isAlive': True
-            }
-        ],
-        'isAlive': True,
-        'height???': 34,
-        'age': "fdfdsfd"
-    }
+@ethermint_testing.command(help="check the status of all of the nodes that form the chain; Pass pairs of region:id")
+@click.argument('instances', type=unicode, nargs=-1)
+def status(instances):
+    chain = Chain([RegionInstancePair(*instance.split(':')) for instance in instances])
+    print Chainmanager().get_status(chain)
 
 
 # jesli to jest ethermint, to dodatkowo sprawdzamy z geth czy informacje sie zgadzaja i tylko wtedy jest isalive
