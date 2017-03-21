@@ -14,15 +14,6 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 
-# FIXME: not used anymore as our api instances depend on arguments, delete if it's not coming back
-# class CommandEnvironment(object):
-#     def __init__(self):
-#         pass
-#
-#
-# pass_environment = click.make_pass_decorator(CommandEnvironment, ensure=True)
-
-
 @click.group()
 def ethermint_testing():
     pass
@@ -87,14 +78,14 @@ def thaw(chainshot_file, num_processes):
 @click.argument('instances', type=unicode, nargs=-1)
 def isalive(instances):
     chain = Chain([RegionInstancePair(*instance.split(':')) for instance in instances])
-    print Chainmanager().isalive(chain)
+    print Chainmanager.isalive(chain)
 
 
 @ethermint_testing.command(help="check the status of all of the nodes that form the chain; Pass pairs of region:id")
 @click.argument('instances', type=unicode, nargs=-1)
 def status(instances):
     chain = Chain([RegionInstancePair(*instance.split(':')) for instance in instances])
-    print Chainmanager().get_status(chain)
+    print Chainmanager.get_status(chain)
 
 
 # jesli to jest ethermint, to dodatkowo sprawdzamy z geth czy informacje sie zgadzaja i tylko wtedy jest isalive

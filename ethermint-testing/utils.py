@@ -150,4 +150,4 @@ def print_nodes(nodes):
 def is_alive(block, now=None, liveness_threshold=DEFAULT_LIVENESS_THRESHOLD):
     if not now:
         now = time.time() * 1e9  # nano seconds
-    return abs(now - block.time) > liveness_threshold
+    return abs(now - block.time) <= liveness_threshold

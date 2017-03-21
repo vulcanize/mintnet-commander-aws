@@ -1,4 +1,3 @@
-import codecs
 import json
 
 import requests
@@ -13,7 +12,7 @@ class EthermintException(Exception):
 
 class Block:
     def __init__(self, hash, height=None, time=None):
-        self.hash = hash
+        self.hash = hash.upper()
         self.height = height
         self.time = time
 
@@ -22,7 +21,10 @@ class TendermintAppInterface:
     @staticmethod
     def get_latest_block(ec2_instance):
         r = requests.get(TENDERMINT_RPC_ENDPOINT(ec2_instance.public_ip_address) + "/status").json()['result'][1]
-        return Block(r["latest_block_hash"], height=r["latest_block_height"], time=r["latest_block_time"])
+        block = Block(r["latest_app_hash"], height=r["latest_block_height"], time=r["latest_block_time"])
+        print(r)
+        print(requests.get(TENDERMINT_RPC_ENDPOINT(ec2_instance.public_ip_address) + "/block?height=" + str(r["latest_block_height"])).json()['result'][1])
+        return block
 
 
 class EthermintInterface(object, TendermintAppInterface):
@@ -43,16 +45,12 @@ class EthermintInterface(object, TendermintAppInterface):
 
     @staticmethod
     def get_latest_block(ec2_instance):
-        last_tendermint_block = super(EthermintInterface, EthermintInterface).get_latest_block(ec2_instance)
         r = EthermintInterface._request(ec2_instance, "eth_getBlockByNumber", ["latest", False])['result']
-        last_ethereum_block = Block(r["hash"], height=int(r["number"], 16), time=int(r["timestamp"], 16))
+        last_tendermint_block = super(EthermintInterface, EthermintInterface).get_latest_block(ec2_instance)
+        last_ethereum_block = Block(r["hash"][2:], height=int(r["number"], 16), time=int(r["timestamp"], 16))
 
-        print(last_ethereum_block.hash)
-        print(last_tendermint_block.hash)
-        print(last_ethereum_block.height)
-        print(last_tendermint_block.height)
-        print(last_tendermint_block.time)
-        print(last_ethereum_block.time)
+        print("ETH " + last_ethereum_block.hash)
+        print("TND " + last_tendermint_block.hash)
 
         # TODO not synchronized conditions
         if abs(last_ethereum_block.height - last_tendermint_block.height) > 1:

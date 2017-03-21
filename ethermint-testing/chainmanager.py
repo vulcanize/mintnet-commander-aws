@@ -198,16 +198,20 @@ class Chainmanager:
 
         return map(RegionInstancePair.from_boto, nodes)
 
-    def isalive(self, chain):
-        now = time.time() * 1e9  # nano seconds
-        unsynced_nodes = filter(lambda (region_instance_pair, block): is_alive(block, now=now), chain.instance_block_infos)
+    @staticmethod
+    def isalive(chain):
+        now = time.time() * 1e9  # in nano seconds
+        unsynced_nodes = filter(lambda (region_instance_pair, block): not is_alive(block, now=now),
+                                chain.instance_block_infos)
         if unsynced_nodes:
             return {"alive": False, "staleblocktimes": [{"name": region_instance_pair.instance_name, "time": block.time}
                                                         for region_instance_pair, block in unsynced_nodes]}
         return {"alive": True, "staleblocktimes": []}
 
-    def get_status(self, chain):
+    @staticmethod
+    def get_status(chain):
         result = {'nodes': []}
+        now = time.time() * 1e9  # in nano seconds
         for region_instance_pair, last_block in chain.instance_block_infos:
             result['nodes'].append({
                 'instance_id': region_instance_pair.id,
@@ -216,10 +220,10 @@ class Chainmanager:
                 'height': last_block.height,
                 'last_block_time': last_block.time,
                 'last_block_height': last_block.height,
-                'is_alive': is_alive(last_block)
+                'is_alive': is_alive(last_block, now=now)
             })
         result['is_alive'] = all(node['is_alive'] for node in result['nodes'])
         heights = map(lambda node: node['height'], result['nodes'])
-        result['height'] = int(float(sum(heights)) / len(heights))
+        result['height'] = reduce(lambda x, y: x + y, heights) / len(heights)
         result['age'] = None  # TODO: the total time that the chain has been running
         return result

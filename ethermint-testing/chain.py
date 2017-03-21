@@ -10,6 +10,7 @@ class RegionInstancePair:
 
     Main reason for this class is being picklable, which in turn is needed by our current parallel processing
     """
+
     def __init__(self, region_name, instance_id):
         self.region_name = region_name
         self.id = instance_id
@@ -57,4 +58,4 @@ class Chain:
     @property
     def instance_block_infos(self):
         return [(region_instance_pair, self.chain_interface.get_latest_block(region_instance_pair.instance))
-         for region_instance_pair in self.instances]
+                for region_instance_pair in self.instances]

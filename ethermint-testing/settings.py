@@ -42,7 +42,7 @@ DEFAULT_FILES_LOCATION = os.path.join(os.getcwd(), "files")
 MAX_MACHINE_CALL_TRIES = 10
 
 # how much time difference can there be between multiple nodes for a certain block to consider the nodes as in sync
-DEFAULT_ETHERMINT_BLOCK_TIME = 1e9  # nano seconds
+DEFAULT_ETHERMINT_BLOCK_TIME = 1e9  # in nano seconds
 DEFAULT_LIVENESS_THRESHOLD = DEFAULT_ETHERMINT_BLOCK_TIME * 10
 
 # default RPC endpoints for given IP
