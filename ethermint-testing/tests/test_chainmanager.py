@@ -324,6 +324,7 @@ def test_local_ethermint_version(chainmanager, mocksubprocess, mockregions):
     chainmanager.create_ethermint_network(mockregions, "local", "master_pub_key")
 
 
+@pytest.mark.parametrize('regionscount', [2])
 def test_get_status(chainmanager, chain):
     height = 123
     chain.chain_interface.get_latest_block = MagicMock(return_value=Block("hash", time=time.time() * 1e9, height=height))
