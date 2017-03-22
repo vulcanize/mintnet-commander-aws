@@ -91,8 +91,8 @@ def isalive(chain_file):
 @click.argument('chain-file', type=click.Path(exists=True))
 def status(chain_file):
     with open(chain_file, 'r') as f:
-        chain = Chain.deserialize(f.read())
-    print(Chainmanager.get_status(chain))
+        chain = Chain.deserialize(json.loads(f.read()))
+    print(json.dumps(Chainmanager.get_status(chain)))
 
 
 # for later, for now just for reference
