@@ -47,19 +47,24 @@ class Chainmaker:
 
         return security_group
 
-    def _update_salt(self, instances):
+    def get_roster(self, chains):
         master_roster_file = ""
-        for i, instance in enumerate(instances):
-            master_roster_file += "node" + str(i) + ":\n"
-            master_roster_file += "    host: " + str(instance.public_ip_address) + "\n"  # TODO private IP here
-            master_roster_file += "    user: ubuntu\n"
-            master_roster_file += "    sudo: True\n"
+        for chain in enumerate(chains):
+            for instance in enumerate(chain['instances']):
+                region_pair = RegionInstancePair(instance['region'], instance['id'])
+                master_roster_file += "node_" + instance['region'] + ":" + instance['id'] + ":\n"
+                master_roster_file += "    host: " + str(instance.public_ip_address) + "\n"  # TODO private IP here
+                master_roster_file += "    user: ubuntu\n"
+                master_roster_file += "    sudo: True\n"
+                master_roster_file += "    "
 
         roster_path = os.path.join(DEFAULT_FILES_LOCATION, "roster")
-        with open(roster_path, 'w') as f:
+        with open(roster_path, 'w+') as f:
             f.write(master_roster_file)
 
-        os.system("shell_scripts/copy_roster.sh {}".format(roster_path))
+        # os.system("shell_scripts/copy_roster.sh {}".format(roster_path))
+
+        return roster_path
 
     @staticmethod
     def _prepare_ethermint(minion_instances):
@@ -176,7 +181,7 @@ class Chainmaker:
         logger.info("All minion {} instances running".format(len(regions)))
 
         if update_salt_roster:
-            self._update_salt(nodes)
+            self.update_salt(nodes)
         self._prepare_ethermint(nodes)
         run_ethermint(nodes)
 

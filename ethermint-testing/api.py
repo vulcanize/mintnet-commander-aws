@@ -90,6 +90,16 @@ def isalive(instance):
     print Chainmaker().isalive(RegionInstancePair(*instance.split(':')))
 
 
+@ethermint_testing.command(help="usage: get_roster chain1.json chain2.json...")
+@click.argument('chains', type=unicode, nargs=-1)
+def get_roster(chains):
+    chain_objects = []
+    for chain in chains:
+        with open(chain, 'r'):
+            chain_objects.append(json.loads(chain.read()))
+    print Chainmaker().get_roster(chain_objects)
+
+
 cli = click.CommandCollection(sources=[ethermint_testing])
 
 if __name__ == '__main__':
