@@ -23,7 +23,8 @@ class TendermintAppInterface:
         r = requests.get(TENDERMINT_RPC_ENDPOINT(ec2_instance.public_ip_address) + "/status").json()['result'][1]
         block = Block(r["latest_app_hash"], height=r["latest_block_height"], time=r["latest_block_time"])
         print(r)
-        print(requests.get(TENDERMINT_RPC_ENDPOINT(ec2_instance.public_ip_address) + "/block?height=" + str(r["latest_block_height"])).json()['result'][1])
+        print(requests.get(TENDERMINT_RPC_ENDPOINT(ec2_instance.public_ip_address) + "/block?height=" \
+                           + str(r["latest_block_height"])).json()['result'][1])
         return block
 
 

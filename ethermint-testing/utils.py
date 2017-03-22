@@ -71,7 +71,7 @@ def create_keyfile(name, regions_set):
 
         res = ec2.import_key_pair(KeyName=name,
                                   PublicKeyMaterial=openssh_public_material)
-        print res.key_fingerprint
+        print(res.key_fingerprint)
 
 
 def run_sh_script(script_filename, ssh_key_name, ip_address):
@@ -109,9 +109,9 @@ def run_sh_script(script_filename, ssh_key_name, ip_address):
         return output
 
 
-def run_ethermint(minion_instances):
+def run_ethermint(chain):
     first_seed = None
-    for i, instance in enumerate(minion_instances):
+    for i, instance in enumerate(chain.instances):
         logger.info("Running ethermint on instance ID: {}".format(instance.id))
 
         # run ethermint
@@ -126,25 +126,13 @@ def run_ethermint(minion_instances):
                           instance.public_ip_address)
 
 
-def halt_ethermint(minion_instances):
-    for i, instance in enumerate(minion_instances):
+def halt_ethermint(chain):
+    for i, instance in enumerate(chain.instances):
         logger.info("Halting ethermint on instance ID: {}".format(instance.id))
 
         run_sh_script("shell_scripts/halt_ethermint.sh",
                       instance.key_name,
                       instance.public_ip_address)
-
-
-def print_nodes(nodes):
-    """
-    notify cli user using print
-    :param nodes: boto3 instances
-    """
-    logger.info("Ethermint instances:")
-    for node in nodes:
-        region = node.region_name  # region is more useful for further processing
-        print "{}:{}".format(region, node.id)
-    logger.info("Check ethermint alive (printing to console really...) with isalive <region>:<instance id>")
 
 
 def is_alive(block, now=None, liveness_threshold=DEFAULT_LIVENESS_THRESHOLD):

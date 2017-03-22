@@ -5,10 +5,9 @@ import os
 import click
 
 from chain import Chain
-from chainmanager import Chainmanager, RegionInstancePair
+from chainmanager import Chainmanager
 from chainshotter import Chainshotter
 from settings import DEFAULT_FILES_LOCATION
-from utils import print_nodes
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -54,13 +53,14 @@ def create(update_roster, regions, ethermint_version, master_pkey_name, name_roo
                                 'supplied in "region:id" pairs')
 @click.option('--name', default="Ethermint-network-chainshot", help='The name of the chainshot')
 @click.option('--output-file-path', default="chainshot.json", help='Output chainshot file path (json)')
-@click.argument('instances', type=unicode, nargs=-1)
-def chainshot(name, instances, output_file_path):
+@click.argument('chain-file', type=click.Path(exists=True))
+def chainshot(name, output_file_path, chain_file):
     """
     Allows to create a chainshot of a network consisting of multiple ec2 instances
     """
-    instances = [RegionInstancePair(*instance.split(':')) for instance in instances]
-    chainshot_data = Chainshotter().chainshot(name, instances)
+    with open(chain_file, 'r') as f:
+        chain = Chain.deserialize(f.read())
+    chainshot_data = Chainshotter().chainshot(name, chain)
     with open(output_file_path, 'w') as f:
         json.dump(chainshot_data, f, indent=2)
     logger.info("The chainshot: {}".format(chainshot_data))
@@ -77,33 +77,24 @@ def thaw(chainshot_file, num_processes):
     with open(chainshot_file) as json_data:
         chainshot = json.load(json_data)
 
-    instances = Chainshotter(num_processes).thaw(chainshot)
-    print_nodes(instances)
+    chain = Chainshotter(num_processes).thaw(chainshot)
+    print(chain)
 
 
-@ethermint_testing.command(help="check if the consensus on the chain is making progress; Pass pairs of region:id")
-@click.argument('instances', type=unicode, nargs=-1)
-def isalive(instances):
-    chain = Chain([RegionInstancePair(*instance.split(':')) for instance in instances])
+@ethermint_testing.command(help="check if the consensus on the chain is making progress")
+@click.argument('chain-file', type=click.Path(exists=True))
+def isalive(chain_file):
+    with open(chain_file, 'r') as f:
+        chain = Chain.deserialize(f.read())
     print Chainmanager.isalive(chain)
 
 
-@ethermint_testing.command(help="check the status of all of the nodes that form the chain; Pass pairs of region:id")
-@click.argument('instances', type=unicode, nargs=-1)
-def status(instances):
-    chain = Chain([RegionInstancePair(*instance.split(':')) for instance in instances])
+@ethermint_testing.command(help="check the status of all of the nodes that form the chain")
+@click.argument('chain-file', type=click.Path(exists=True))
+def status(chain_file):
+    with open(chain_file, 'r') as f:
+        chain = Chain.deserialize(f.read())
     print Chainmanager.get_status(chain)
-
-
-# jesli to jest ethermint, to dodatkowo sprawdzamy z geth czy informacje sie zgadzaja i tylko wtedy jest isalive
-# create, chainshot powinny zwracac identycznego jsona, ktorego potem mozna uzyc jako argumnet chain
-# ten json powinien explicite zawierac informacje o tym, jaki to jest chain (ethermint)
-
-
-# live chain json-example, json file which describes the meta data about a running chain
-# to serve as input to the CLI app (as json file) it needs to support at least
-# jayson['instances']['instance']['id']
-# so a json file like the "chainshot" json without 'snapshot' fields works
 
 
 # for later, for now just for reference

@@ -48,9 +48,9 @@ class Chainmanager:
 
         return security_group
 
-    def _update_salt(self, instances):
+    def _update_salt(self, chain):
         master_roster_file = ""
-        for i, instance in enumerate(instances):
+        for i, instance in enumerate(chain.instances):
             master_roster_file += "node" + str(i) + ":\n"
             master_roster_file += "    host: " + str(instance.public_ip_address) + "\n"  # TODO private IP here
             master_roster_file += "    user: ubuntu\n"
@@ -63,13 +63,13 @@ class Chainmanager:
         os.system("shell_scripts/copy_roster.sh {}".format(roster_path))
 
     @staticmethod
-    def _prepare_ethermint(minion_instances):
+    def _prepare_ethermint(chain):
         ethermint_files_location = os.path.join(DEFAULT_FILES_LOCATION, "ethermint")
         ethermint_genesis = os.path.join(ethermint_files_location, "data", "genesis.json")
-        prepare_validators(len(minion_instances), ethermint_files_location)
-        fill_validators(len(minion_instances), ethermint_genesis, ethermint_genesis, ethermint_files_location)
+        prepare_validators(len(chain.instances), ethermint_files_location)
+        fill_validators(len(chain.instances), ethermint_genesis, ethermint_genesis, ethermint_files_location)
 
-        for i, instance in enumerate(minion_instances):
+        for i, instance in enumerate(chain.instances):
             logger.info("Preparing ethermint on instance ID: {}".format(instance.id))
             run_sh_script("shell_scripts/prepare_ethermint_env.sh", instance.key_name, instance.public_ip_address)
 
@@ -174,12 +174,14 @@ class Chainmanager:
             })
 
         nodes = self.instance_creator.create_ec2s_from_json(instances_config)
+        chain = Chain(map(RegionInstancePair.from_boto, nodes))
+
         logger.info("All minion {} instances running".format(len(regions)))
 
         if update_salt_roster:
-            self._update_salt(nodes)
-        self._prepare_ethermint(nodes)
-        run_ethermint(nodes)
+            self._update_salt(chain)
+        self._prepare_ethermint(chain)
+        run_ethermint(chain)
 
         for node in nodes:
             logger.info("Checking ethermint version {} on {}".format(ethermint_version,
@@ -196,7 +198,7 @@ class Chainmanager:
         for node in nodes:
             logger.info("Ethermint instance ID: {} in {}".format(node.id, node.placement["AvailabilityZone"]))
 
-        return Chain(map(RegionInstancePair.from_boto, nodes))
+        return chain
 
     @staticmethod
     def isalive(chain):

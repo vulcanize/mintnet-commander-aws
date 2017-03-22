@@ -62,7 +62,10 @@ class Chain:
                 for region_instance_pair in self.instances]
 
     def __str__(self):
-        return str(self.serialize())
+        result = ""
+        for instance in self.instances:
+            result += "{}:{}\n".format(instance.region_name, instance.id)
+        return result
 
     def serialize(self):
         result = {
