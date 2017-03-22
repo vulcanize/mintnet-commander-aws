@@ -48,19 +48,17 @@ class Chainmanager:
 
         return security_group
 
-    def _update_salt(self, chain):
-        master_roster_file = ""
-        for i, instance in enumerate(chain.instances):
-            master_roster_file += "node" + str(i) + ":\n"
-            master_roster_file += "    host: " + str(instance.public_ip_address) + "\n"  # TODO private IP here
-            master_roster_file += "    user: ubuntu\n"
-            master_roster_file += "    sudo: True\n"
+    def get_roster(self, chains):
+        master_roster = {}
+        for chain_idx, chain in enumerate(chains):
+            for region_pair in chain.instances:
+                instance_data = dict(host=str(region_pair.public_ip_address),  # TODO private IP here
+                                     user="ubuntu",
+                                     sudo=True)
+                instance_name = "chain{}_{}_{}".format(chain_idx, region_pair.region_name, region_pair.id)
+                master_roster[instance_name] = instance_data
 
-        roster_path = os.path.join(DEFAULT_FILES_LOCATION, "roster")
-        with open(roster_path, 'w') as f:
-            f.write(master_roster_file)
-
-        os.system("shell_scripts/copy_roster.sh {}".format(roster_path))
+        return master_roster
 
     @staticmethod
     def _prepare_ethermint(chain):
@@ -101,7 +99,7 @@ class Chainmanager:
         else:
             return ethermint_version
 
-    def create_ethermint_network(self, regions, ethermint_version, master_pub_key, update_salt_roster=False,
+    def create_ethermint_network(self, regions, ethermint_version, master_pub_key,
                                  name_root="test", no_ami_cache=False):
         """
         Creates an ethermint network consisting of multiple ethermint nodes
@@ -178,8 +176,6 @@ class Chainmanager:
 
         logger.info("All minion {} instances running".format(len(regions)))
 
-        if update_salt_roster:
-            self._update_salt(chain)
         self._prepare_ethermint(chain)
         run_ethermint(chain)
 

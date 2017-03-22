@@ -74,10 +74,10 @@ class Chain:
             "type": "ethermint" if isinstance(self.chain_interface, EthermintInterface) else "tendermintapp"
         }
         for region_instance_pair in self.instances:
-            result["instances"].append({
-                "instance_id": region_instance_pair.id,
-                "region_name": region_instance_pair.region_name
-            })
+            result["instances"].append(dict(instance={
+                "id": region_instance_pair.id,
+                "region": region_instance_pair.region_name
+            }))
         return result
 
     @staticmethod
@@ -85,5 +85,6 @@ class Chain:
         assert "instances" in data
         instances = []
         for instance_data in data["instances"]:
-            instances.append(RegionInstancePair(instance_data["region_name"], instance_data["instance_id"]))
+            instances.append(RegionInstancePair(instance_data["instance"]["region"],
+                                                instance_data["instance"]["id"]))
         return Chain(instances, name=data.get("name", ""), chain_type=data.get("chain_type", "ethermint"))
