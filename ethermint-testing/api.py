@@ -29,7 +29,7 @@ def ethermint_testing():
 @click.option('--num-processes', '-n', default=None, type=click.INT,
               help='specify >1 if you want to run instance creation in parallel using multiprocessing')
 @click.option('--no-ami-cache', is_flag=True, help='Force rebuilding of Ethermint AMIs')
-@click.option('--output-file-path', default=None, help='Output chainshot file path (json)')
+@click.option('--output-file-path', default="chain.json", help='Output chainshot file path (json)')
 def create(update_roster, regions, ethermint_version, master_pkey_name, name_root, num_processes, no_ami_cache,
            output_file_path):
     """
@@ -43,8 +43,6 @@ def create(update_roster, regions, ethermint_version, master_pkey_name, name_roo
 
     print(chain)
 
-    if not output_file_path:
-        output_file_path = name_root + ".json"
     with open(output_file_path, 'w') as f:
         json.dump(chain.serialize(), f, indent=2)
 
@@ -86,7 +84,7 @@ def thaw(chainshot_file, num_processes):
 def isalive(chain_file):
     with open(chain_file, 'r') as f:
         chain = Chain.deserialize(f.read())
-    print Chainmanager.isalive(chain)
+    print(Chainmanager.isalive(chain))
 
 
 @ethermint_testing.command(help="check the status of all of the nodes that form the chain")
@@ -94,7 +92,7 @@ def isalive(chain_file):
 def status(chain_file):
     with open(chain_file, 'r') as f:
         chain = Chain.deserialize(f.read())
-    print Chainmanager.get_status(chain)
+    print(Chainmanager.get_status(chain))
 
 
 # for later, for now just for reference
