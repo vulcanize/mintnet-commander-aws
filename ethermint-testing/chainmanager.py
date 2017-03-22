@@ -202,16 +202,22 @@ class Chainmanager:
 
     @staticmethod
     def isalive(chain):
-        now = time.time() * 1e9  # in nano seconds
-        unsynced_nodes = filter(lambda (region_instance_pair, block): not is_alive(block, now=now),
-                                chain.instance_block_infos)
-        if unsynced_nodes:
-            return {"alive": False, "staleblocktimes": [{"name": region_instance_pair.instance_name, "time": block.time}
-                                                        for region_instance_pair, block in unsynced_nodes]}
-        return {"alive": True, "staleblocktimes": []}
+        """
+        Allows to quickly check if chain is alive; for more details, use status
+        :param chain:
+        :return:
+        """
+        data = Chainmanager.get_status(chain)
+        return {"is_alive": data['is_alive'], "staleblocktimes": [{"name": r["name"], "time": r["last_block_time"]}
+                                                                  for r in data["nodes"] if not r["is_alive"]]}
 
     @staticmethod
     def get_status(chain):
+        """
+        Allows to get defailed information about a chain including last block info
+        :param chain:
+        :return:
+        """
         result = {'nodes': []}
         now = time.time() * 1e9  # in nano seconds
         for region_instance_pair, last_block in chain.instance_block_infos:

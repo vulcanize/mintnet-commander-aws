@@ -214,42 +214,78 @@ def chain(chainmanager, mockregions, ethermint_version):
 
 
 @pytest.mark.parametrize('regionscount', [2])
-def test_isalive(chainmanager, chain):
-    # create blocks that are alive
-    chain.chain_interface.get_latest_block = MagicMock(return_value=Block("hash", time=time.time() * 1e9))
+def test_get_status(chainmanager, chain):
+    height = 123
+    t = time.time() * 1e9  # create blocks that are alive
+    chain.chain_interface.get_latest_block = MagicMock(return_value=Block("hash", time=t, height=height))
 
-    result = chainmanager.isalive(chain)
-    assert result["alive"]
-    assert not result["staleblocktimes"]
+    result = chainmanager.get_status(chain)
+    assert result["is_alive"]
+    assert result["height"] == height
+
+    instance = chain.instances[0]
+    result_instance = result['nodes'][0]
+    assert result_instance['instance_id'] == instance.id
+    assert result_instance['instance_region'] == instance.region_name
+    assert result_instance['name'] == instance.instance_name
+    assert result_instance['height'] == height
+    assert result_instance['last_block_time'] == t
+    assert result_instance['last_block_height'] == height
+    assert result_instance['is_alive']
 
 
 @pytest.mark.parametrize('regionscount', [2])
-def test_isalive_dead(chainmanager, chain):
-    # create too old blocks
-    chain.chain_interface.get_latest_block = MagicMock(return_value=Block("hash", time=time.time() * 1e9 - DEFAULT_LIVENESS_THRESHOLD))
+def test_get_status_all_dead(chainmanager, chain):
+    height = 123
+    t = time.time() * 1e9 - DEFAULT_LIVENESS_THRESHOLD  # create too old blocks
+    chain.chain_interface.get_latest_block = MagicMock(return_value=Block("hash", time=t, height=height))
 
-    result = chainmanager.isalive(chain)
-    assert not result["alive"]
-    assert len(result["staleblocktimes"]) == len(chain.instances)
+    result = chainmanager.get_status(chain)
+    assert not result["is_alive"]
+    assert len(result["nodes"]) == len(chain.instances)
+    for instance in result['nodes']:
+        assert not instance['is_alive']
+        assert instance['last_block_time'] == t
 
 
-@pytest.mark.parametrize('regionscount', [5])
-def test_isalive_one_dead(chainmanager, chain):
-
+@pytest.mark.parametrize('regionscount', [2])
+def test_get_status_one_dead(chainmanager, chain):
     stale_instance = {"index": 0}  # a dict so it can be changed from inner function, ugly python trick
-    stale_instances_count = 1
+    stale_instances_count = 1  # this many dead instances will be reported
+    height = 123
 
-    def get_latest_block(instance):
+    def get_latest_block(*args):
         if stale_instance["index"] < stale_instances_count:
             stale_instance["index"] += 1
-            return Block("hash", time=time.time() * 1e9 - 2 * DEFAULT_LIVENESS_THRESHOLD)
-        return Block("hash", time=time.time() * 1e9)
+            return Block("hash", time=time.time() * 1e9 - 2 * DEFAULT_LIVENESS_THRESHOLD, height=height)
+        return Block("hash", time=time.time() * 1e9, height=height)
 
     chain.chain_interface.get_latest_block = MagicMock(side_effect=get_latest_block)
 
-    result = chainmanager.isalive(chain)
-    assert not result["alive"]
-    assert len(result["staleblocktimes"]) == stale_instances_count
+    result = chainmanager.get_status(chain)
+    assert not result["is_alive"]
+    assert len(filter(lambda instance: not instance['is_alive'], result['nodes'])) == stale_instances_count
+
+
+@pytest.mark.parametrize('regionscount', [1])
+def test_get_status_ethermint_out_of_sync(chainmanager, chain):
+    pass
+
+
+@pytest.mark.parametrize('regionscount', [5, 6])
+def test_get_status_average_height(chainmanager, chain, regionscount):
+    current = {"value": 1}
+
+    def get_latest_block(*args):
+        block = Block("hash", time=time.time() * 1e9, height=current["value"])
+        current["value"] += 1
+        return block
+
+    chain.chain_interface.get_latest_block = MagicMock(side_effect=get_latest_block)
+
+    result = chainmanager.get_status(chain)
+    assert result["is_alive"]
+    assert result["height"] == (regionscount + 1) / 2
 
 
 @pytest.mark.parametrize('regionscount', [2])
@@ -317,14 +353,3 @@ def test_local_ethermint_version(chainmanager, mocksubprocess, mockregions):
 
     # good version
     chainmanager.create_ethermint_network(mockregions, "local", "master_pub_key")
-
-
-@pytest.mark.parametrize('regionscount', [2])
-def test_get_status(chainmanager, chain):
-    height = 123
-    chain.chain_interface.get_latest_block = MagicMock(return_value=Block("hash", time=time.time() * 1e9, height=height))
-
-    result = chainmanager.get_status(chain)
-    assert result["is_alive"]
-    assert result["height"] == height
-    assert len(result["nodes"]) == len(chain.instances)
