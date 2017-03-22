@@ -83,7 +83,7 @@ def thaw(chainshot_file, num_processes):
 @click.argument('chain-file', type=click.Path(exists=True))
 def isalive(chain_file):
     with open(chain_file, 'r') as f:
-        chain = Chain.deserialize(f.read())
+        chain = Chain.deserialize(json.load(f))
     print(Chainmanager.isalive(chain))
 
 
@@ -91,7 +91,7 @@ def isalive(chain_file):
 @click.argument('chain-file', type=click.Path(exists=True))
 def status(chain_file):
     with open(chain_file, 'r') as f:
-        chain = Chain.deserialize(f.read())
+        chain = Chain.deserialize(json.load(f))
     print(Chainmanager.get_status(chain))
 
 
