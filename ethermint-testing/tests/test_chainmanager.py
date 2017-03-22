@@ -1,14 +1,12 @@
 import os
+import time
 
 import boto3
-import mock
 import pytest
-import time
 import yaml
 from mock.mock import MagicMock
 
-from chain import Chain
-from chainmanager import Chainmanager, RegionInstancePair
+from chainmanager import Chainmanager
 from settings import DEFAULT_DEVICE, DEFAULT_PORTS, DEFAULT_LIVENESS_THRESHOLD
 from tendermint_app_interface import Block
 from utils import get_shh_key_file

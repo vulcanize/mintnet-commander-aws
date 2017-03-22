@@ -24,15 +24,17 @@ def chainshotter(mockossystem, mocksubprocess):
 @pytest.fixture()
 def prepare_chainshot(chainmanager, chainshotter, mockregions, ethermint_version):
 
-    instances = chainmanager.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
-    return chainshotter.chainshot("Test", instances)
+    chain = chainmanager.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
+    return chainshotter.chainshot("Test", chain.instances)
 
 
 @pytest.mark.parametrize('regionscount', [2])
 def test_chainshot_halts_restarts(chainshotter, mocksubprocess, mockregions, chainmanager, ethermint_version):
     # 2 instances to check if halt and start are in right order
-    [instance1, instance2] = chainmanager.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
+    chain = chainmanager.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
     mocksubprocess.reset_mock()
+
+    [instance1, instance2] = chain.instances
 
     chainshotter.chainshot("Test", [instance1, instance2])
 
@@ -58,8 +60,8 @@ def test_chainshot_halts_restarts(chainshotter, mocksubprocess, mockregions, cha
 
 
 def test_chainshot_creates_snapshots(chainshotter, chainmanager, mockregions, ethermint_version):
-    instances = chainmanager.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
-    chainshotter.chainshot("Test", instances)
+    chain = chainmanager.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
+    chainshotter.chainshot("Test", chain.instances)
     total_snapshots = 0
     for region in set(mockregions):
         ec2_client = boto3.client('ec2', region_name=region)
@@ -67,17 +69,17 @@ def test_chainshot_creates_snapshots(chainshotter, chainmanager, mockregions, et
         all_snaps = [snapshot["SnapshotId"] for snapshot in all_snaps["Snapshots"]]
         total_snapshots += len(all_snaps)
         assert len(all_snaps) == mockregions.count(region)
-    assert total_snapshots == len(instances)
+    assert total_snapshots == len(chain.instances)
 
 
 def test_chainshot_return_data(chainshotter, chainmanager, mockregions, mockami, ethermint_version):
     time1 = datetime.datetime.utcnow().replace(microsecond=0)
     sleep(1)  # sleeping to put differentiate times from aws with second resolution and make test deterministic
-    instances = chainmanager.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
+    chain = chainmanager.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
     sleep(1)
     time2 = datetime.datetime.utcnow().replace(microsecond=0)
     sleep(1)
-    chainshot_data = chainshotter.chainshot("Test", instances)
+    chainshot_data = chainshotter.chainshot("Test", chain.instances)
     sleep(1)
     time3 = datetime.datetime.utcnow().replace(microsecond=0)
 
@@ -97,9 +99,9 @@ def test_chainshot_return_data(chainshotter, chainmanager, mockregions, mockami,
         assert data["snapshot"]["id"] in snapshots_in_regions[region]
 
         assert data["instance"]["ami"] == mockami
-        assert data["instance"]["tags"] == instances[i].tags
-        assert data["instance"]["key_name"] == instances[i].key_name
-        assert data["instance"]["security_groups"][0] == instances[i].security_groups[0]['GroupName']
+        assert data["instance"]["tags"] == chain.instances[i].tags
+        assert data["instance"]["key_name"] == chain.instances[i].key_name
+        assert data["instance"]["security_groups"][0] == chain.instances[i].security_groups[0]['GroupName']
 
         snapshot_from = dateutil.parser.parse(data["snapshot"]["from"], ignoretz=True)
         snapshot_to = dateutil.parser.parse(data["snapshot"]["to"], ignoretz=True)
