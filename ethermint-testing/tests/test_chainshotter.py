@@ -8,10 +8,11 @@ import pytest
 from botocore.exceptions import ClientError
 from mock import MagicMock
 
-from chainmaker import RegionInstancePair
+from chain import Chain
+from chainmanager import RegionInstancePair
 from chainshotter import Chainshotter
 from settings import DEFAULT_REGION, DEFAULT_DEVICE
-from utils import get_shh_key_file, print_nodes
+from utils import get_shh_key_file
 
 ETHERMINT_P2P_PORT = 46656
 
@@ -22,19 +23,21 @@ def chainshotter(mockossystem, mocksubprocess):
 
 
 @pytest.fixture()
-def prepare_chainshot(chainmaker, chainshotter, mockregions, ethermint_version):
+def prepare_chainshot(chainmanager, chainshotter, mockregions, ethermint_version):
 
-    instances = chainmaker.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
-    return chainshotter.chainshot("Test", instances)
+    chain = chainmanager.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
+    return chainshotter.chainshot("Test", chain)
 
 
 @pytest.mark.parametrize('regionscount', [2])
-def test_chainshot_halts_restarts(chainshotter, mocksubprocess, mockregions, chainmaker, ethermint_version):
+def test_chainshot_halts_restarts(chainshotter, mocksubprocess, mockregions, chainmanager, ethermint_version):
     # 2 instances to check if halt and start are in right order
-    [instance1, instance2] = chainmaker.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
+    chain = chainmanager.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
     mocksubprocess.reset_mock()
 
-    chainshotter.chainshot("Test", [instance1, instance2])
+    [instance1, instance2] = chain.instances
+
+    chainshotter.chainshot("Test", chain)
 
     args_list = mocksubprocess.call_args_list
     assert len(args_list) == 4
@@ -57,9 +60,9 @@ def test_chainshot_halts_restarts(chainshotter, mocksubprocess, mockregions, cha
         ETHERMINT_P2P_PORT), shell=True)
 
 
-def test_chainshot_creates_snapshots(chainshotter, chainmaker, mockregions, ethermint_version):
-    instances = chainmaker.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
-    chainshotter.chainshot("Test", instances)
+def test_chainshot_creates_snapshots(chainshotter, chainmanager, mockregions, ethermint_version):
+    chain = chainmanager.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
+    chainshotter.chainshot("Test", chain)
     total_snapshots = 0
     for region in set(mockregions):
         ec2_client = boto3.client('ec2', region_name=region)
@@ -67,17 +70,17 @@ def test_chainshot_creates_snapshots(chainshotter, chainmaker, mockregions, ethe
         all_snaps = [snapshot["SnapshotId"] for snapshot in all_snaps["Snapshots"]]
         total_snapshots += len(all_snaps)
         assert len(all_snaps) == mockregions.count(region)
-    assert total_snapshots == len(instances)
+    assert total_snapshots == len(chain.instances)
 
 
-def test_chainshot_return_data(chainshotter, chainmaker, mockregions, mockami, ethermint_version):
+def test_chainshot_return_data(chainshotter, chainmanager, mockregions, mockami, ethermint_version):
     time1 = datetime.datetime.utcnow().replace(microsecond=0)
     sleep(1)  # sleeping to put differentiate times from aws with second resolution and make test deterministic
-    instances = chainmaker.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
+    chain = chainmanager.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
     sleep(1)
     time2 = datetime.datetime.utcnow().replace(microsecond=0)
     sleep(1)
-    chainshot_data = chainshotter.chainshot("Test", instances)
+    chainshot_data = chainshotter.chainshot("Test", chain)
     sleep(1)
     time3 = datetime.datetime.utcnow().replace(microsecond=0)
 
@@ -97,9 +100,9 @@ def test_chainshot_return_data(chainshotter, chainmaker, mockregions, mockami, e
         assert data["snapshot"]["id"] in snapshots_in_regions[region]
 
         assert data["instance"]["ami"] == mockami
-        assert data["instance"]["tags"] == instances[i].tags
-        assert data["instance"]["key_name"] == instances[i].key_name
-        assert data["instance"]["security_groups"][0] == instances[i].security_groups[0]['GroupName']
+        assert data["instance"]["tags"] == chain.instances[i].tags
+        assert data["instance"]["key_name"] == chain.instances[i].key_name
+        assert data["instance"]["security_groups"][0] == chain.instances[i].security_groups[0]['GroupName']
 
         snapshot_from = dateutil.parser.parse(data["snapshot"]["from"], ignoretz=True)
         snapshot_to = dateutil.parser.parse(data["snapshot"]["to"], ignoretz=True)
@@ -110,11 +113,11 @@ def test_chainshot_return_data(chainshotter, chainmaker, mockregions, mockami, e
 
 def test_invalid_chainshots(chainshotter, monkeypatch):
     # patch to not have complains about the instance missing in aws
-    monkeypatch.setattr('chainmaker.RegionInstancePair.instance', MagicMock())
-    instances = [RegionInstancePair(DEFAULT_REGION, 'no-instance')]
+    monkeypatch.setattr('chainmanager.RegionInstancePair.instance', MagicMock())
+    chain = Chain([RegionInstancePair(DEFAULT_REGION, 'no-instance')])
     # volumes filter returns empty (no ethermint_volume)
     with pytest.raises(IndexError):
-        chainshotter.chainshot("Test", instances)
+        chainshotter.chainshot("Test", chain)
 
     # UnauthorizedOperation when creating a snapshot - how to simulate?
     pass
@@ -123,12 +126,11 @@ def test_invalid_chainshots(chainshotter, monkeypatch):
 @pytest.mark.parametrize('regionscount', [2])
 def test_attaching_ebs_snapshots_on_thaw(chainshotter, prepare_chainshot):
     chainshot = prepare_chainshot
-    instances = chainshotter.thaw(chainshot)
+    chain = chainshotter.thaw(chainshot)
 
     snapshot_ids = [inst["snapshot"]["id"] for inst in chainshot["instances"]]
-    for instance in instances:
-        volumes = list(instance.volumes.filter(Filters=
-        [
+    for instance in chain.instances:
+        volumes = list(instance.volumes.filter(Filters=[
             {'Name': 'snapshot-id', 'Values': snapshot_ids}
         ]))
         assert len(volumes) == 1
@@ -143,7 +145,8 @@ def test_mounting_ebs_and_running_on_thaw(chainshotter, mocksubprocess, prepare_
     # For now testing if the ssh command is correct
     chainshot = prepare_chainshot
     mocksubprocess.reset_mock()
-    [instance] = chainshotter.thaw(chainshot)[:1]
+    chain = chainshotter.thaw(chainshot)
+    instance = chain.instances[0]
 
     args_list = mocksubprocess.call_args_list
     assert len(args_list) == 4
@@ -175,9 +178,9 @@ def test_invalid_thaws(chainshotter, prepare_chainshot, mockregions):
 @pytest.mark.parametrize('regionscount', [2])
 def test_thaw_printable(chainshotter, prepare_chainshot, capsys):
     chainshot = prepare_chainshot
-    instances = chainshotter.thaw(chainshot)
+    chain = chainshotter.thaw(chainshot)
 
-    print_nodes(instances)
+    print(chain)
 
     out, err = capsys.readouterr()
     assert err == ""
@@ -186,5 +189,5 @@ def test_thaw_printable(chainshotter, prepare_chainshot, capsys):
         if line == '':
             continue
         region, instance_id = line.split(':')
-        assert region == instances[i].region_name
-        assert instance_id == instances[i].id
+        assert region == chain.instances[i].region_name
+        assert instance_id == chain.instances[i].id

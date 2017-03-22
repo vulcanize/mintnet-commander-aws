@@ -2,7 +2,8 @@ import logging
 
 import boto3
 
-from chainmaker import RegionInstancePair
+from chain import Chain
+from chainmanager import RegionInstancePair
 from instance_creator import InstanceCreator
 from settings import DEFAULT_DEVICE
 from utils import run_sh_script, get_region_name, run_ethermint, halt_ethermint
@@ -15,42 +16,39 @@ class Chainshotter:
     def __init__(self, num_processes=None):
         self.instance_creator = InstanceCreator(num_processes)
 
-    def chainshot(self, name, region_instances):
+    def chainshot(self, name, chain):
         """
         Allows to snapshot a chain and save a json file with all chainshot info
 
+        :param chain: the chain object to be snapshot
         :param name: the name (ID) of the snapshot
-        :param instances_ids_map: the map of instance IDs pointing to regions where they're located
         :return: a dictionary containing the snapshot info
         """
         results = {
             "chainshot_name": name,
             "instances": []
         }
-        for pair in region_instances:
-            all_ids = [instance.id for instance in list(pair.ec2.instances.all())]
-            if pair.id not in all_ids:
-                raise IndexError("Instance {} not found in region {}".format(pair.id, pair.region_name))
+        for region_instance_pair in chain.instances:
+            all_ids = [instance.id for instance in list(region_instance_pair.ec2.instances.all())]
+            if region_instance_pair.id not in all_ids:
+                raise IndexError("Instance {} not found in region {}".format(region_instance_pair.id,
+                                                                             region_instance_pair.region_name))
 
-        instances = [pair.instance for pair in region_instances]
+        halt_ethermint(chain)
 
-        halt_ethermint(instances)
-
-        for pair in region_instances:
-            instance = pair.instance
-            volumes_collection = instance.volumes.filter(Filters=
-            [
+        for region_instance_pair in chain.instances:
+            instance = region_instance_pair.instance
+            volumes_collection = instance.volumes.filter(Filters=[
                 {'Name': 'tag-key', 'Values': ["Name"]},
                 {'Name': 'tag-value', 'Values': ['ethermint_volume']}
-            ]
-            )
+            ])
             volume = list(volumes_collection)[0]
 
-            snapshot_info = self._snapshot(instance, volume, pair.ec2)
+            snapshot_info = self._snapshot(instance, volume, region_instance_pair.ec2)
 
             results["instances"].append(snapshot_info)
 
-        run_ethermint(instances)
+        run_ethermint(chain)
 
         logger.info("Finished chainshotting, the results:")
         logger.info(results)
@@ -123,7 +121,9 @@ class Chainshotter:
         for instance in instances:
             logger.info("Instance ID: {} unfreezed from chainshot".format(instance.id))
 
-        run_ethermint(instances)
+        chain = Chain(map(RegionInstancePair.from_boto, instances))
+        run_ethermint(chain)
+
         logger.info("Done starting ethermint on instances")
 
-        return map(RegionInstancePair.from_boto, instances)
+        return chain

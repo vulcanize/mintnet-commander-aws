@@ -50,7 +50,7 @@ class InstanceCreator:
 
 def _create_instance(instance_config):
     """
-    Helper - outside Chainmaker due to pickling for multiprocessing
+    Helper - outside Chainmanager due to pickling for multiprocessing
     :param instance_config:
     :return: created instance's id
     """
@@ -74,7 +74,7 @@ def _create_instance(instance_config):
 
 def _add_volume(instance):
     """
-    Outside Chainmaker due to pickling for multiprocessing
+    Outside Chainmanager due to pickling for multiprocessing
     Allows to create a new volume and attach it to an instance and mount it
     The volume is created in the same zone as the instnace
     :param instance: the instance object
