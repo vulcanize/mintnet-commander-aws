@@ -1,4 +1,5 @@
 import os
+import re
 import time
 
 import boto3
@@ -17,6 +18,7 @@ def create_mock_amis(mockami, mockamibuilder):
     """
     Makes the mockamibuilder pretend to be building amis in regions
     """
+
     def _create(ethermint_version, ami_name, regions=None):
         for region in regions:
             ec2 = boto3.resource('ec2', region_name=region)
@@ -165,8 +167,8 @@ def test_ethermint_network_update_roster(chainmanager, mockregions, mockossystem
 
 
 @pytest.mark.parametrize('regionscount', [2])
-def test_ethermint_network_prepares_for_ethermint(chainmanager, mockregions, mocksubprocess, mockossystem, tmp_files_dir,
-                                                  ethermint_version):
+def test_ethermint_network_prepares_for_ethermint(chainmanager, mockregions, mocksubprocess, mockossystem,
+                                                  tmp_files_dir, ethermint_version):
     chain = chainmanager.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
     ethermint_files_location = os.path.join(tmp_files_dir, "ethermint")
 
@@ -213,11 +215,31 @@ def chain(chainmanager, mockregions, ethermint_version):
     return chainmanager.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
 
 
+@pytest.fixture()
+def mock_ethermint_requests(requests_mock):
+    def _mock(height, time, apphash, ip=None):
+        if not ip:
+            ip = r'[\d\.]+'
+        requests_mock.add(requests_mock.GET, re.compile(r'http://' + ip + r':46657/status'),
+                          json={"result": [0, {"latest_block_height": height + 1, "latest_block_time": time,
+                                               "latest_app_hash": apphash}]},
+                          status=200)
+
+        requests_mock.add(requests_mock.GET, re.compile(r'http://' + ip + r':46657/block\?height=\d'),
+                          json={"result": [0, {"block": {"header": {"height": height + 1, "app_hash": apphash}}}]},
+                          status=200)
+
+        requests_mock.add(requests_mock.POST, re.compile(r'http://' + ip + r':8545'),
+                          json={"result": {"number": hex(height), "hash": "0x" + apphash, "timestamp": hex(int(time))}},
+                          status=200)
+    return _mock
+
+
 @pytest.mark.parametrize('regionscount', [2])
-def test_get_status(chainmanager, chain):
+def test_get_status(chainmanager, chain, mock_ethermint_requests):
     height = 123
     t = time.time() * 1e9  # create blocks that are alive
-    chain.chain_interface.get_latest_block = MagicMock(return_value=Block("hash", time=t, height=height))
+    mock_ethermint_requests(height, t, "hash")
 
     result = chainmanager.get_status(chain)
     assert result["is_alive"]
@@ -235,10 +257,9 @@ def test_get_status(chainmanager, chain):
 
 
 @pytest.mark.parametrize('regionscount', [2])
-def test_get_status_all_dead(chainmanager, chain):
-    height = 123
+def test_get_status_all_dead(chainmanager, chain, mock_ethermint_requests):
     t = time.time() * 1e9 - DEFAULT_LIVENESS_THRESHOLD  # create too old blocks
-    chain.chain_interface.get_latest_block = MagicMock(return_value=Block("hash", time=t, height=height))
+    mock_ethermint_requests(123, t, "hash")
 
     result = chainmanager.get_status(chain)
     assert not result["is_alive"]
@@ -249,22 +270,14 @@ def test_get_status_all_dead(chainmanager, chain):
 
 
 @pytest.mark.parametrize('regionscount', [2])
-def test_get_status_one_dead(chainmanager, chain):
-    stale_instance = {"index": 0}  # a dict so it can be changed from inner function, ugly python trick
-    stale_instances_count = 1  # this many dead instances will be reported
-    height = 123
-
-    def get_latest_block(*args):
-        if stale_instance["index"] < stale_instances_count:
-            stale_instance["index"] += 1
-            return Block("hash", time=time.time() * 1e9 - 2 * DEFAULT_LIVENESS_THRESHOLD, height=height)
-        return Block("hash", time=time.time() * 1e9, height=height)
-
-    chain.chain_interface.get_latest_block = MagicMock(side_effect=get_latest_block)
+def test_get_status_one_dead(chainmanager, chain, mock_ethermint_requests):
+    mock_ethermint_requests(123, time.time() * 1e9, "hash")
+    mock_ethermint_requests(123, time.time() * 1e9 - 2 * DEFAULT_LIVENESS_THRESHOLD, "hash",
+                            ip=chain.instances[0].public_ip_address)
 
     result = chainmanager.get_status(chain)
     assert not result["is_alive"]
-    assert len(filter(lambda instance: not instance['is_alive'], result['nodes'])) == stale_instances_count
+    assert len(filter(lambda instance: not instance['is_alive'], result['nodes'])) == 1
 
 
 @pytest.mark.parametrize('regionscount', [1])
@@ -314,7 +327,7 @@ def test_chainmanager_imports_keypairs(chainmanager, mockregions, ethermint_vers
 
 @pytest.mark.parametrize('regionscount', [2])
 def test_chainmanager_calls_mints(monkeypatch, mockossystem, mocksubprocess, mockregions, ethermint_version,
-                                mockamibuilder, tmp_files_dir, moto):
+                                  mockamibuilder, tmp_files_dir, moto):
     # mock out all reading of *mint calls results
     monkeypatch.setattr('chainmanager.fill_validators', MagicMock)
     chainmanager = Chainmanager()
@@ -349,6 +362,7 @@ def test_local_ethermint_version(chainmanager, mocksubprocess, mockregions):
             return "01230123012301230123012301230123"
         else:
             return ''
+
     mocksubprocess.side_effect = local_ethermint_version
 
     # good version

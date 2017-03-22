@@ -21,13 +21,13 @@ class TendermintAppInterface:
     @staticmethod
     def get_latest_block(ec2_instance):
         r = requests.get(TENDERMINT_RPC_ENDPOINT(ec2_instance.public_ip_address) + "/status").json()['result'][1]
-        block = Block(r["latest_app_hash"], height=r["latest_block_height"] + 1, time=r["latest_block_time"])
+        block = Block(r["latest_app_hash"], height=r["latest_block_height"] - 1, time=r["latest_block_time"])
         return block
 
     @staticmethod
     def get_block(ec2_instance, height):
         r = requests.get(TENDERMINT_RPC_ENDPOINT(ec2_instance.public_ip_address) + "/block?height=" + str(height)).json()['result'][1]
-        block = Block(r["block"]["header"]["app_hash"], height=r["block"]["header"]["height"] + 1)  # TODO time
+        block = Block(r["block"]["header"]["app_hash"], height=r["block"]["header"]["height"] - 1)  # TODO time
         return block
 
 
@@ -53,9 +53,6 @@ class EthermintInterface(object, TendermintAppInterface):
         height = int(r["number"], 16)
         last_ethereum_block = Block(r["hash"][2:], height=height, time=int(r["timestamp"], 16))
         tendermint_block = super(EthermintInterface, EthermintInterface).get_block(ec2_instance, height)
-
-        print("ETH " + last_ethereum_block.hash)
-        print("TND " + tendermint_block.hash)
 
         if last_ethereum_block.height != tendermint_block.height or last_ethereum_block.hash != tendermint_block.hash:
             raise EthermintException("Geth/tendermint not in sync in instance {}".format(ec2_instance.id))

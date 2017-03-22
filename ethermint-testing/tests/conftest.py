@@ -5,6 +5,7 @@ import os
 
 import boto3
 import pytest
+import responses
 from mock import MagicMock
 from moto import mock_ec2
 
@@ -137,3 +138,9 @@ def chainmanager(monkeypatch, mockossystem, mocksubprocess,
                  mockamibuilder, tmp_files_dir, fake_ethermint_files, moto):
     # generic "all mocked out" instance
     return Chainmanager()
+
+
+@pytest.fixture()
+def requests_mock():
+    with responses.RequestsMock() as rsps:
+        yield rsps
