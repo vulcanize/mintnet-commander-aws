@@ -3,6 +3,7 @@ import logging
 import os
 
 import click
+import yaml
 
 from chain import Chain
 from chainmanager import Chainmanager
@@ -19,7 +20,6 @@ def ethermint_testing():
 
 
 @ethermint_testing.command()
-@click.option('--update-roster/--no-update-roster', default=False, help='Update /etc/salt/roster locally?')
 @click.option('--regions', '-r', required=True, default=None, type=click.STRING, multiple=True,
               help='A list of regions; one instance is created per region')
 @click.option('--ethermint-version', default="local", help='The hash of ethermints commit or local to use '
@@ -30,7 +30,7 @@ def ethermint_testing():
               help='specify >1 if you want to run instance creation in parallel using multiprocessing')
 @click.option('--no-ami-cache', is_flag=True, help='Force rebuilding of Ethermint AMIs')
 @click.option('--output-file-path', default="chain.json", help='Output chainshot file path (json)')
-def create(update_roster, regions, ethermint_version, master_pkey_name, name_root, num_processes, no_ami_cache,
+def create(regions, ethermint_version, master_pkey_name, name_root, num_processes, no_ami_cache,
            output_file_path):
     """
     Creates an ethermint network consisting of ethermint nodes
@@ -38,7 +38,7 @@ def create(update_roster, regions, ethermint_version, master_pkey_name, name_roo
     with open(os.path.join(DEFAULT_FILES_LOCATION, master_pkey_name + '.key.pub'), 'r') as f:
         master_pub_key = f.read()
     chainmanager = Chainmanager(num_processes=num_processes)
-    chain = chainmanager.create_ethermint_network(regions, ethermint_version, master_pub_key, update_roster, name_root,
+    chain = chainmanager.create_ethermint_network(regions, ethermint_version, master_pub_key, name_root,
                                                   no_ami_cache=no_ami_cache)
 
     print(chain)
@@ -109,13 +109,13 @@ def status(chain_file):
 
 
 @ethermint_testing.command(help="usage: get_roster chain1.json chain2.json...")
-@click.argument('chains', type=unicode, nargs=-1)
-def get_roster(chains):
+@click.argument('chain_files', type=unicode, nargs=-1)
+def get_roster(chain_files):
     chain_objects = []
-    for chain in chains:
-        with open(chain, 'r'):
-            chain_objects.append(json.loads(chain.read()))
-    print Chainmaker().get_roster(chain_objects)
+    for chain_file in chain_files:
+        with open(chain_file, 'r') as f:
+            chain_objects.append(Chain.deserialize(json.loads(f.read())))
+    print yaml.dump(Chainmanager().get_roster(chain_objects), default_flow_style=False)
 
 
 cli = click.CommandCollection(sources=[ethermint_testing])

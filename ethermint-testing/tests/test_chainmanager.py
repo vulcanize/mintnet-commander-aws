@@ -143,25 +143,30 @@ def test_ethermint_network_mounts_volumes(chainmanager, mockregions, mocksubproc
 
 
 @pytest.mark.parametrize('regionscount', [2])
-def test_ethermint_network_update_roster(chainmanager, mockregions, mockossystem, ethermint_version):
-    chain = chainmanager.create_ethermint_network(mockregions, ethermint_version, "master_pub_key",
-                                                  update_salt_roster=True)
-    nodes_ips = [node.public_ip_address for node in chain.instances]
+def test_get_roster_all_nodes(chainmanager, mockregions, ethermint_version):
+    chain1 = chainmanager.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
+    chain2 = chainmanager.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
 
-    filepath = None
-    sh_command_start = "shell_scripts/copy_roster.sh"
-    for c in mockossystem.mock_calls:
-        first_arg = c[1][0]
-        if first_arg.startswith(sh_command_start):
-            filepath = first_arg[first_arg.find(sh_command_start) + len(sh_command_start):].strip()
-            break
-    assert filepath
+    roster = chainmanager.get_roster([chain1, chain2])
 
-    with open(filepath, "r") as f:
-        contents = yaml.safe_load(f)
+    assert len(roster) == 2 * len(mockregions)
 
-    for c in contents:
-        assert contents[c]['host'] in nodes_ips
+
+@pytest.mark.parametrize('regionscount', [1])
+def test_get_roster_good_node(chainmanager, mockregions, ethermint_version):
+    chain = chainmanager.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
+
+    roster = chainmanager.get_roster([chain])
+
+    node_name = roster.keys()[0]
+
+    # sensible node name
+    assert mockregions[0] in node_name
+    assert chain.instances[0].id in node_name
+
+    node = roster[node_name]
+
+    assert node['host'] == chain.instances[0].public_ip_address
 
 
 @pytest.mark.parametrize('regionscount', [2])
@@ -319,7 +324,6 @@ def test_local_ethermint_version(chainmanager, mocksubprocess, mockregions):
     chainmanager.create_ethermint_network(mockregions, "local", "master_pub_key")
 
 
-@pytest.mark.parametrize('regionscount', [2])
 def test_get_status(chainmanager, chain):
     height = 123
     chain.chain_interface.get_latest_block = MagicMock(return_value=Block("hash", time=time.time() * 1e9, height=height))
