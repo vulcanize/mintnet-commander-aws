@@ -7,7 +7,7 @@ from chainmanager import RegionInstancePair
 from instance_creator import InstanceCreator
 from settings import DEFAULT_DEVICE
 from utils import run_sh_script, get_region_name, run_ethermint, halt_ethermint
-from waiting_for_ec2 import wait_for_detached, wait_for_available_volume
+from waiting_for_ec2 import wait_for_available_volume
 
 logger = logging.getLogger(__name__)
 
