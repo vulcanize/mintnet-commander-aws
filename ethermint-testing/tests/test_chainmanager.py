@@ -8,7 +8,7 @@ from mock.mock import MagicMock
 
 from chainmanager import Chainmanager
 from settings import DEFAULT_DEVICE, DEFAULT_PORTS, DEFAULT_LIVENESS_THRESHOLD
-from tendermint_app_interface import Block
+from tendermint_app_interface import Block, EthermintException
 from utils import get_shh_key_file
 
 
@@ -281,8 +281,39 @@ def test_get_status_one_dead(chainmanager, chain, mock_ethermint_requests):
 
 
 @pytest.mark.parametrize('regionscount', [1])
-def test_get_status_ethermint_out_of_sync(chainmanager, chain):
-    pass
+def test_get_status_ethermint_out_of_sync(chainmanager, chain, requests_mock):
+    ip = chain.instances[0].public_ip_address
+    height = 123
+    apphash = "hash"
+    t = time.time() * 1e9
+
+    # different hashes
+    requests_mock.add(requests_mock.GET, re.compile(r'http://' + ip + r':46657/status'),
+                      json={"result": [0, {"latest_block_height": height, "latest_block_time": t,
+                                           "latest_app_hash": apphash + "0"}]},
+                      status=200)
+
+    requests_mock.add(requests_mock.POST, re.compile(r'http://' + ip + r':8545'),
+                      json={"result": {"number": hex(height - 1), "hash": "0x" + apphash,
+                                       "timestamp": hex(int(t))}},
+                      status=200)
+
+    with pytest.raises(EthermintException):
+        chainmanager.get_status(chain)
+
+    # no heights difference (geth H app hash should be in tendermint H+1 block)
+    requests_mock.add(requests_mock.GET, re.compile(r'http://' + ip + r':46657/status'),
+                      json={"result": [0, {"latest_block_height": height, "latest_block_time": t,
+                                           "latest_app_hash": apphash}]},
+                      status=200)
+
+    requests_mock.add(requests_mock.POST, re.compile(r'http://' + ip + r':8545'),
+                      json={"result": {"number": hex(height), "hash": "0x" + apphash,
+                                       "timestamp": hex(int(t))}},
+                      status=200)
+
+    with pytest.raises(EthermintException):
+        chainmanager.get_status(chain)
 
 
 @pytest.mark.parametrize('regionscount', [5, 6])
