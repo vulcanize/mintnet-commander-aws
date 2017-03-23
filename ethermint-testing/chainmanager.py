@@ -49,6 +49,11 @@ class Chainmanager:
         return security_group
 
     def get_roster(self, chains):
+        """
+        Creates a common roster file for a group of chains to manage them using salt-ssh
+        :param chains: a list of chain objects
+        :return: a dictionary
+        """
         master_roster = {}
         for chain_idx, chain in enumerate(chains):
             for region_pair in chain.instances:
