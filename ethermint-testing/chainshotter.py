@@ -120,6 +120,10 @@ class Chainshotter:
             run_sh_script("shell_scripts/mount_snapshot.sh", snapshot_info["instance"]["key_name"],
                           new_instance.public_ip_address)
 
+            # set instance time to ensure continuity
+            run_sh_script("shell_scripts/forge_date.sh {}".format(snapshot_info["snapshot"]["to"]),
+                          snapshot_info["instance"]["key_name"], new_instance.public_ip_address)
+
         for instance in instances:
             logger.info("Instance ID: {} unfreezed from chainshot".format(instance.id))
 
