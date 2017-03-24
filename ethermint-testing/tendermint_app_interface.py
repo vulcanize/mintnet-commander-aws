@@ -2,8 +2,6 @@ import json
 
 import requests
 
-from settings import TENDERMINT_RPC_ENDPOINT, GETH_RPC_ENDPOINT
-
 
 class EthermintException(Exception):
     def __init__(self, message):
@@ -28,15 +26,19 @@ class TendermintAppInterface:
         :param block: None for latest
         """
         if block is None:
-            raw = requests.get(TENDERMINT_RPC_ENDPOINT(ec2_instance.public_ip_address) + "/status")
+            raw = requests.get(TendermintAppInterface.rpc(ec2_instance.public_ip_address) + "/status")
             r = TendermintAppInterface.prepare_rpc_result(raw)
             return Block(r["latest_app_hash"], height=r["latest_block_height"], time=r["latest_block_time"])
         else:
-            raw = requests.get("{}/block?height={}".format(TENDERMINT_RPC_ENDPOINT(ec2_instance.public_ip_address),
+            raw = requests.get("{}/block?height={}".format(TendermintAppInterface.rpc(ec2_instance.public_ip_address),
                                                            block))
             r = TendermintAppInterface.prepare_rpc_result(raw)
             header = r["block"]["header"]
             return Block(header["app_hash"], height=header["height"], time=header["time"])
+
+    @staticmethod
+    def rpc(ip):
+        return "http://{}:46657".format(ip)
 
 
 class EthermintInterface(object, TendermintAppInterface):
@@ -52,8 +54,12 @@ class EthermintInterface(object, TendermintAppInterface):
     def _request(ec2_instance, method, params=None):
         data = json.dumps({"jsonrpc": "2.0", "method": method, "params": params or [],
                            "id": EthermintInterface._get_request_id()})
-        response = requests.post(GETH_RPC_ENDPOINT(ec2_instance.public_ip_address), data=data)
+        response = requests.post(EthermintInterface.rpc(ec2_instance.public_ip_address), data=data)
         return response.json()
+
+    @staticmethod
+    def rpc(ip):
+        return "http://{}:8545".format(ip)
 
     @staticmethod
     def get_block(ec2_instance, block=None):

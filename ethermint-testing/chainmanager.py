@@ -222,7 +222,8 @@ class Chainmanager:
         """
         result = {'nodes': []}
         now = time.time() * 1e9  # in nano seconds
-        for region_instance_pair, last_block in chain.instance_block_infos:
+        for region_instance_pair in chain.instances:
+            last_block = chain.chain_interface.get_block(region_instance_pair.instance)
             result['nodes'].append({
                 'instance_id': region_instance_pair.id,
                 'instance_region': region_instance_pair.region_name,

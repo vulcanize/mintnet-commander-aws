@@ -56,16 +56,6 @@ class Chain:
         self.chain_interface = EthermintInterface if chain_type == "ethermint" else TendermintAppInterface
         self.name = name
 
-    @property
-    def instance_block_infos(self):
-        """
-        Returns a list of tuples, where the first parameter is a region instance pair
-        and the second is the latest block in that instance
-        :return:
-        """
-        return [(region_instance_pair, self.chain_interface.get_block(region_instance_pair.instance))
-                for region_instance_pair in self.instances]
-
     def __str__(self):
         result = ""
         for instance in self.instances:
@@ -96,7 +86,6 @@ class Chain:
         :param data:
         :return: chain object
         """
-        assert "instances" in data
         instances = []
         for instance_data in data["instances"]:
             instances.append(RegionInstancePair(instance_data["instance"]["region"],

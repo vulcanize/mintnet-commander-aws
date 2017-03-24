@@ -56,8 +56,8 @@ def chainshot(name, output_file_path, chain_file):
     """
     Allows to create a chainshot of a network consisting of multiple ec2 instances
     """
-    with open(chain_file, 'r') as f:
-        chain = Chain.deserialize(f.read())
+    with open(chain_file, 'r') as json_data:
+        chain = Chain.deserialize(json.load(json_data))
     chainshot_data = Chainshotter().chainshot(name, chain)
     with open(output_file_path, 'w') as f:
         json.dump(chainshot_data, f, indent=2)
@@ -82,16 +82,16 @@ def thaw(chainshot_file, num_processes):
 @ethermint_testing.command(help="check if the consensus on the chain is making progress")
 @click.argument('chain-file', type=click.Path(exists=True))
 def isalive(chain_file):
-    with open(chain_file, 'r') as f:
-        chain = Chain.deserialize(json.load(f))
+    with open(chain_file, 'r') as json_data:
+        chain = Chain.deserialize(json.load(json_data))
     print(Chainmanager.isalive(chain))
 
 
 @ethermint_testing.command(help="check the status of all of the nodes that form the chain")
 @click.argument('chain-file', type=click.Path(exists=True))
 def status(chain_file):
-    with open(chain_file, 'r') as f:
-        chain = Chain.deserialize(json.loads(f.read()))
+    with open(chain_file, 'r') as json_data:
+        chain = Chain.deserialize(json.loads(json_data))
     print(json.dumps(Chainmanager.get_status(chain)))
 
 
@@ -113,8 +113,8 @@ def history(chain_file, fromm, to):
 def get_roster(chain_files):
     chain_objects = []
     for chain_file in chain_files:
-        with open(chain_file, 'r') as f:
-            chain_objects.append(Chain.deserialize(json.loads(f.read())))
+        with open(chain_file, 'r') as json_data:
+            chain_objects.append(Chain.deserialize(json.loads(json_data)))
     print yaml.dump(Chainmanager().get_roster(chain_objects), default_flow_style=False)
 
 
