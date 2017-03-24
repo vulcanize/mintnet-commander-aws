@@ -29,7 +29,7 @@ def ethermint_testing():
 @click.option('--num-processes', '-n', default=None, type=click.INT,
               help='specify >1 if you want to run instance creation in parallel using multiprocessing')
 @click.option('--no-ami-cache', is_flag=True, help='Force rebuilding of Ethermint AMIs')
-@click.option('--output-file-path', default="chain.json", help='Output chainshot file path (json)')
+@click.option('--output-file-path', help='Output chainshot file path (json)')
 def create(regions, ethermint_version, master_pkey_name, name_root, num_processes, no_ami_cache,
            output_file_path):
     """
@@ -41,7 +41,7 @@ def create(regions, ethermint_version, master_pkey_name, name_root, num_processe
     chain = chainmanager.create_ethermint_network(regions, ethermint_version, master_pub_key, name_root,
                                                   no_ami_cache=no_ami_cache)
 
-    print(chain)
+    logger.info("Created a chain ".format(chain))
 
     with open(output_file_path, 'w') as f:
         json.dump(chain.serialize(), f, indent=2)
@@ -50,14 +50,14 @@ def create(regions, ethermint_version, master_pkey_name, name_root, num_processe
 @ethermint_testing.command(help='Pass as arguments the list of ethermint instance objects, '
                                 'supplied in "region:id" pairs')
 @click.option('--name', default="Ethermint-network-chainshot", help='The name of the chainshot')
-@click.option('--output-file-path', default="chainshot.json", help='Output chainshot file path (json)')
+@click.option('--output-file-path', help='Output chainshot file path (json)')
 @click.argument('chain-file', type=click.Path(exists=True))
 def chainshot(name, output_file_path, chain_file):
     """
     Allows to create a chainshot of a network consisting of multiple ec2 instances
     """
     with open(chain_file, 'r') as json_data:
-        chain = Chain.deserialize(json.load(json_data))
+        chain = Chain.deserialize(json.load(json_data.read()))
     chainshot_data = Chainshotter().chainshot(name, chain)
     with open(output_file_path, 'w') as f:
         json.dump(chainshot_data, f, indent=2)
@@ -73,7 +73,7 @@ def thaw(chainshot_file, num_processes):
     Allows to unfreeze a network from a config
     """
     with open(chainshot_file) as json_data:
-        chainshot = json.load(json_data)
+        chainshot = json.load(json_data.read())
 
     chain = Chainshotter(num_processes).thaw(chainshot)
     print(chain)
@@ -83,7 +83,7 @@ def thaw(chainshot_file, num_processes):
 @click.argument('chain-file', type=click.Path(exists=True))
 def isalive(chain_file):
     with open(chain_file, 'r') as json_data:
-        chain = Chain.deserialize(json.load(json_data))
+        chain = Chain.deserialize(json.load(json_data.read()))
     print(Chainmanager.isalive(chain))
 
 
@@ -91,7 +91,7 @@ def isalive(chain_file):
 @click.argument('chain-file', type=click.Path(exists=True))
 def status(chain_file):
     with open(chain_file, 'r') as json_data:
-        chain = Chain.deserialize(json.loads(json_data))
+        chain = Chain.deserialize(json.loads(json_data.read()))
     print(json.dumps(Chainmanager.get_status(chain)))
 
 
