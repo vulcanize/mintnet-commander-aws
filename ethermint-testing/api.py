@@ -57,7 +57,7 @@ def chainshot(name, output_file_path, chain_file):
     Allows to create a chainshot of a network consisting of multiple ec2 instances
     """
     with open(chain_file, 'r') as json_data:
-        chain = Chain.deserialize(json.load(json_data.read()))
+        chain = Chain.deserialize(json.loads(json_data.read()))
     chainshot_data = Chainshotter().chainshot(name, chain)
     with open(output_file_path, 'w') as f:
         json.dump(chainshot_data, f, indent=2)
@@ -73,7 +73,7 @@ def thaw(chainshot_file, num_processes):
     Allows to unfreeze a network from a config
     """
     with open(chainshot_file) as json_data:
-        chainshot = json.load(json_data.read())
+        chainshot = json.loads(json_data.read())
 
     chain = Chainshotter(num_processes).thaw(chainshot)
     print(chain)
@@ -83,7 +83,7 @@ def thaw(chainshot_file, num_processes):
 @click.argument('chain-file', type=click.Path(exists=True))
 def isalive(chain_file):
     with open(chain_file, 'r') as json_data:
-        chain = Chain.deserialize(json.load(json_data.read()))
+        chain = Chain.deserialize(json.loads(json_data.read()))
     print(Chainmanager.isalive(chain))
 
 
