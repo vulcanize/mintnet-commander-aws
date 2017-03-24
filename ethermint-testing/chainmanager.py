@@ -27,7 +27,7 @@ class Chainmanager:
         """
         Creates a security group in AWS based on ports
         :param name: the name of the newly created group
-        :param ports: a list of ports as ints
+        :param ports: a list of tuples (ports as ints, protocol (tcp/udp))
         :param region: the AWS region
         :return: the SecurityGroup object
         """
@@ -35,10 +35,10 @@ class Chainmanager:
         security_group = ec2.create_security_group(GroupName=name,
                                                    Description=DEFAULT_SECURITY_GROUP_DESCRIPTION)
         logger.info("Security group {} created".format(name))
-        for port in ports:
+        for (port, protocol) in ports:
             security_group.authorize_ingress(IpPermissions=[
                 {
-                    'IpProtocol': 'tcp',
+                    'IpProtocol': protocol,
                     'FromPort': port,
                     'ToPort': port,
                     'IpRanges': [{'CidrIp': '0.0.0.0/0'}]

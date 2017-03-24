@@ -63,9 +63,9 @@ def test_ethermint_network_security_group(chainmanager, mockregions, ethermint_v
         node_sec_groups = [group["GroupId"] for group in node.security_groups]
         assert len(node_sec_groups) == 1
 
-        security_group_ports = [range(ip_perm["FromPort"], ip_perm["ToPort"] + 1)
+        security_group_ports = [(range(ip_perm["FromPort"], ip_perm["ToPort"] + 1), ip_perm["IpProtocol"])
                                 for ip_perm in ec2.SecurityGroup(node_sec_groups[0]).ip_permissions]
-        security_group_ports = [item for sublist in security_group_ports for item in sublist]  # flatten list of lists
+        security_group_ports = [(port, protocol) for (sublist, protocol) in security_group_ports for port in sublist]  # flatten list of lists
         assert sorted(security_group_ports) == sorted(DEFAULT_PORTS)
 
 
