@@ -2,6 +2,8 @@
 import os
 
 # ssh is 22, 4505 and 4506 are needed by salt; others are ethermint ports
+import datetime
+
 DEFAULT_PORTS = [22, 4505, 4506] + [46656, 46657, 8545]
 
 # the default AWS region
@@ -40,3 +42,6 @@ DEFAULT_FILES_LOCATION = os.path.join(os.getcwd(), "files")
 
 # how many times to try when connecting to an instance using SSH
 MAX_MACHINE_CALL_TRIES = 10
+
+# how much time difference can there be between multiple nodes for a certain block to consider the nodes as in sync
+DEFAULT_LIVENESS_THRESHOLD = datetime.timedelta(seconds=10)

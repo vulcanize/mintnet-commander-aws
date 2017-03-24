@@ -1,12 +1,15 @@
 import os
 import subprocess
+from datetime import datetime
 
 import boto3
 import logging
 
 import time
 
-from settings import DEFAULT_FILES_LOCATION, MAX_MACHINE_CALL_TRIES
+import pytz
+
+from settings import DEFAULT_FILES_LOCATION, MAX_MACHINE_CALL_TRIES, DEFAULT_LIVENESS_THRESHOLD
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +74,7 @@ def create_keyfile(name, regions_set):
 
         res = ec2.import_key_pair(KeyName=name,
                                   PublicKeyMaterial=openssh_public_material)
-        print res.key_fingerprint
+        print(res.key_fingerprint)
 
 
 def run_sh_script(script_filename, ssh_key_name, ip_address):
@@ -109,9 +112,9 @@ def run_sh_script(script_filename, ssh_key_name, ip_address):
         return output
 
 
-def run_ethermint(minion_instances):
+def run_ethermint(chain):
     first_seed = None
-    for i, instance in enumerate(minion_instances):
+    for i, instance in enumerate(chain.instances):
         logger.info("Running ethermint on instance ID: {}".format(instance.id))
 
         # run ethermint
@@ -126,8 +129,8 @@ def run_ethermint(minion_instances):
                           instance.public_ip_address)
 
 
-def halt_ethermint(minion_instances):
-    for i, instance in enumerate(minion_instances):
+def halt_ethermint(chain):
+    for i, instance in enumerate(chain.instances):
         logger.info("Halting ethermint on instance ID: {}".format(instance.id))
 
         run_sh_script("shell_scripts/halt_ethermint.sh",
@@ -135,13 +138,15 @@ def halt_ethermint(minion_instances):
                       instance.public_ip_address)
 
 
-def print_nodes(nodes):
+def is_alive(block, now=None, liveness_threshold=DEFAULT_LIVENESS_THRESHOLD):
+    if not now:
+        now = datetime.now()
+    return abs(now - block.time) <= liveness_threshold
+
+
+def to_utc_iso(dt):
     """
-    notify cli user using print
-    :param nodes: boto3 instances
+    :param dt: datetime object
+    :return: the date and time formatted to string in UTC
     """
-    logger.info("Ethermint instances:")
-    for node in nodes:
-        region = node.region_name  # region is more useful for further processing
-        print "{}:{}".format(region, node.id)
-    logger.info("Check ethermint alive (printing to console really...) with isalive <region>:<instance id>")
+    return pytz.utc.localize(dt).strftime("%Y-%m-%dT%H:%M:%S.%f%z")
