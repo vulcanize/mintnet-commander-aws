@@ -221,7 +221,19 @@ def chain(chainmanager, mockregions, ethermint_version):
 
 @pytest.fixture()
 def mock_ethermint_requests(requests_mock):
+    """
+    A decorated fixture which allows to mock HTTP requests made by tendermintApp interface and ethermint interface;
+    the resulting responses will never create out-of-sync status of geth and tendermint
+    """
     def _mock(height, time, apphash, ip_list):
+        """
+        Mocks requests to certain entrypoints;
+        :param height: the last block height
+        :param time: the last block time
+        :param apphash: the hash of the last geth block
+        :param ip_list: the list of the IPs which will be queried
+        :return:
+        """
         for ip in ip_list:
             requests_mock.add(requests_mock.GET, re.compile(r'http://' + ip + r':46657/status'),
                               json={"result": [0, {"latest_block_height": height, "latest_block_time": time,

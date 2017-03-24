@@ -96,7 +96,6 @@ class Chain:
         :param data:
         :return: chain object
         """
-        assert "instances" in data
         instances = []
         for instance_data in data["instances"]:
             instances.append(RegionInstancePair(instance_data["instance"]["region"],
