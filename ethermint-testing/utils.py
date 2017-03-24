@@ -1,10 +1,13 @@
 import os
 import subprocess
+from datetime import datetime
 
 import boto3
 import logging
 
 import time
+
+import pytz
 
 from settings import DEFAULT_FILES_LOCATION, MAX_MACHINE_CALL_TRIES, DEFAULT_LIVENESS_THRESHOLD
 
@@ -137,5 +140,13 @@ def halt_ethermint(chain):
 
 def is_alive(block, now=None, liveness_threshold=DEFAULT_LIVENESS_THRESHOLD):
     if not now:
-        now = time.time() * 1e9  # nano seconds
+        now = datetime.now()
     return abs(now - block.time) <= liveness_threshold
+
+
+def to_utc_iso(dt):
+    """
+    :param dt: datetime object
+    :return: the date and time formatted to string in UTC
+    """
+    return pytz.utc.localize(dt).strftime("%Y-%m-%dT%H:%M:%S.%f%z")

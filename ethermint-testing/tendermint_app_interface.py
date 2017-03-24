@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 
 import requests
 
@@ -12,7 +13,7 @@ class Block:
     def __init__(self, hash, height=None, time=None):
         self.hash = hash.upper()
         self.height = height
-        self.time = time
+        self.time = time  # datetime object
 
 
 class TendermintAppInterface:
@@ -23,7 +24,8 @@ class TendermintAppInterface:
     @staticmethod
     def get_latest_block(ec2_instance):
         r = requests.get(TendermintAppInterface.rpc(ec2_instance.public_ip_address) + "/status").json()['result'][1]
-        block = Block(r["latest_app_hash"], height=r["latest_block_height"], time=r["latest_block_time"])
+        t = datetime.fromtimestamp(r["latest_block_time"] / 1e9)
+        block = Block(r["latest_app_hash"], height=r["latest_block_height"], time=t)
         return block
 
 
@@ -54,7 +56,7 @@ class EthermintInterface(object, TendermintAppInterface):
 
         r = EthermintInterface._request(ec2_instance, "eth_getBlockByNumber", [str(ethermint_height), False])['result']
         height = int(r["number"], 16)
-        last_ethereum_block = Block(r["hash"][2:], height=height, time=int(r["timestamp"], 16))
+        last_ethereum_block = Block(r["hash"][2:], height=height, time=datetime.fromtimestamp(int(r["timestamp"], 16)))
 
         if last_ethereum_block.height + 1 != tendermint_latest_block.height \
                 or last_ethereum_block.hash != tendermint_latest_block.hash:

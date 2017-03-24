@@ -14,7 +14,7 @@ from instance_creator import InstanceCreator
 from settings import DEFAULT_INSTANCE_NAME, \
     DEFAULT_SECURITY_GROUP_DESCRIPTION, DEFAULT_PORTS, \
     DEFAULT_FILES_LOCATION
-from utils import create_keyfile, run_sh_script, get_shh_key_file, run_ethermint, is_alive
+from utils import create_keyfile, run_sh_script, get_shh_key_file, run_ethermint, is_alive, to_utc_iso
 
 logger = logging.getLogger(__name__)
 
@@ -220,7 +220,8 @@ class Chainmanager:
         :return:
         """
         result = {'nodes': []}
-        now = time.time() * 1e9  # in nano seconds
+        now = datetime.now()
+
         for region_instance_pair in chain.instances:
             last_block = chain.chain_interface.get_latest_block(region_instance_pair.instance)
             result['nodes'].append({
@@ -228,7 +229,7 @@ class Chainmanager:
                 'instance_region': region_instance_pair.region_name,
                 'name': region_instance_pair.instance_name,
                 'height': last_block.height,
-                'last_block_time': last_block.time,
+                'last_block_time': to_utc_iso(last_block.time),
                 'last_block_height': last_block.height,
                 'is_alive': is_alive(last_block, now=now)
             })
