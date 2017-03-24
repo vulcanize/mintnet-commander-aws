@@ -53,6 +53,7 @@ class RegionInstancePair:
 class Chain:
     def __init__(self, instances, name="", chain_type="ethermint"):
         self.instances = instances  # a list of RegionInstancePairs
+        self.chain_type = chain_type
         self.chain_interface = EthermintInterface if chain_type == "ethermint" else TendermintAppInterface
         self.name = name
 
@@ -70,7 +71,7 @@ class Chain:
         result = {
             "instances": [],
             "name": self.name,
-            "type": "ethermint" if isinstance(self.chain_interface, EthermintInterface) else "tendermintapp"
+            "type": self.chain_type
         }
         for region_instance_pair in self.instances:
             result["instances"].append(dict(instance={
