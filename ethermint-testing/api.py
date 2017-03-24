@@ -24,21 +24,18 @@ def ethermint_testing():
               help='A list of regions; one instance is created per region')
 @click.option('--ethermint-version', default="local", help='The hash of ethermints commit or local to use '
                                                            'local version in GOPATH (default)')
-@click.option('--master-pkey-name', required=True, help='')
 @click.option('--name-root', default="test", help='Root of the names of amis to create')
 @click.option('--num-processes', '-n', default=None, type=click.INT,
               help='specify >1 if you want to run instance creation in parallel using multiprocessing')
 @click.option('--no-ami-cache', is_flag=True, help='Force rebuilding of Ethermint AMIs')
-@click.option('--output-file-path', help='Output chainshot file path (json)')
-def create(regions, ethermint_version, master_pkey_name, name_root, num_processes, no_ami_cache,
+@click.option('--output-file-path', help='Output chain file path (json)')
+def create(regions, ethermint_version, name_root, num_processes, no_ami_cache,
            output_file_path):
     """
     Creates an ethermint network consisting of ethermint nodes
     """
-    with open(os.path.join(DEFAULT_FILES_LOCATION, master_pkey_name + '.key.pub'), 'r') as f:
-        master_pub_key = f.read()
     chainmanager = Chainmanager(num_processes=num_processes)
-    chain = chainmanager.create_ethermint_network(regions, ethermint_version, master_pub_key, name_root,
+    chain = chainmanager.create_ethermint_network(regions, ethermint_version, name_root,
                                                   no_ami_cache=no_ami_cache)
 
     logger.info("Created a chain ".format(chain))

@@ -104,11 +104,10 @@ class Chainmanager:
         else:
             return ethermint_version
 
-    def create_ethermint_network(self, regions, ethermint_version, master_pub_key,
+    def create_ethermint_network(self, regions, ethermint_version,
                                  name_root="test", no_ami_cache=False):
         """
         Creates an ethermint network consisting of multiple ethermint nodes
-        :param master_pub_key: master public key to be added to authorized keys
         :param ethermint_version: the hash of the ethermint commit
         :param name_root: the base of the AMI name
         :param regions: a list of regions where instances will be run; we run 1 instance per region
@@ -125,7 +124,7 @@ class Chainmanager:
 
         # Find AMI ID for each region and create AMIs if missing
         amis = {}
-        ami_builder = AMIBuilder(master_pub_key, packer_file_name="packer-file-ethermint-salt-ssh")
+        ami_builder = AMIBuilder(packer_file_name="packer-file-ethermint-salt-ssh")
         for region in distinct_regions:
             ec2 = boto3.resource('ec2', region_name=region)
             images = list(ec2.images.filter(Owners=['self'], Filters=[{'Name': 'tag:Ethermint',

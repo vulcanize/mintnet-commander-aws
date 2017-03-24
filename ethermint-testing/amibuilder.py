@@ -16,12 +16,11 @@ logger = logging.getLogger(__name__)
 
 
 class AMIBuilder:
-    def __init__(self, master_pub_key, packer_file_path=DEFAULT_FILES_LOCATION, packer_file_name="salt_packer"):
+    def __init__(self, packer_file_path=DEFAULT_FILES_LOCATION, packer_file_name="salt_packer"):
         access_key, secret_key = self._get_credentials()
         packer_vars = {
             "aws_access_key": access_key,
             "aws_secret_key": secret_key,
-            "master_public_key": master_pub_key
         }
         if not os.path.exists(packer_file_path):
             os.makedirs(packer_file_path)
