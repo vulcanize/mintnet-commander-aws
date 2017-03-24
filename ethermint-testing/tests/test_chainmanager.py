@@ -320,12 +320,12 @@ def test_get_status_ethermint_out_of_sync(chainmanager, chain, requests_mock):
 def test_get_status_average_height(chainmanager, chain, regionscount):
     current = {"value": 1}
 
-    def get_latest_block(*args):
+    def get_block(*args):
         block = Block("hash", time=time.time() * 1e9, height=current["value"])
         current["value"] += 1
         return block
 
-    chain.chain_interface.get_latest_block = MagicMock(side_effect=get_latest_block)
+    chain.chain_interface.get_block = MagicMock(side_effect=get_block)
 
     result = chainmanager.get_status(chain)
     assert result["is_alive"]

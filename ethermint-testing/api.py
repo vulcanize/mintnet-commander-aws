@@ -95,17 +95,17 @@ def status(chain_file):
     print(json.dumps(Chainmanager.get_status(chain)))
 
 
-# for later, for now just for reference
-# def history(chain, fromm, to):
-#     b = {
-#         'nodes': [
-#             {
-#                 'name???': 'node1',
-#                 'blocktimes': ['isotime1', 'isotime2...'],
-#                 'txcounts': [0, 2]
-#             }
-#         ]
-#     }
+@ethermint_testing.command(help="get history of chain performance")
+@click.option('--fromm', '-f', default=None, type=click.INT,
+              help='earliest block to look at')
+@click.option('--to', '-t', default=None, type=click.INT,
+              help='earliest block to not look at (i.e. exclusive/pythonish to)')
+@click.argument('chain-file', type=click.Path(exists=True))
+def history(chain_file, fromm, to):
+    with open(chain_file, 'r') as f:
+        chain = Chain.deserialize(json.loads(f.read()))
+    to_print = "\n".join([str(c) for c in Chainmanager.get_history(chain, fromm, to)])
+    print(to_print)
 
 
 @ethermint_testing.command(help="usage: get_roster chain1.json chain2.json...")

@@ -6,6 +6,7 @@ from datetime import datetime
 from uuid import uuid4
 
 import boto3
+import dateutil
 
 from amibuilder import AMIBuilder
 from chain import RegionInstancePair, Chain
@@ -235,4 +236,28 @@ class Chainmanager:
         heights = map(lambda node: node['height'], result['nodes'])
         result['height'] = reduce(lambda x, y: x + y, heights) / len(heights)
         result['age'] = None  # TODO: the total time that the chain has been running
+        return result
+
+    @staticmethod
+    def get_history(chain, fromm=None, to=None):
+        if fromm + 1 >= to:
+            raise ValueError("need at least 1 block between from and two to get block times")
+        # FIXME: just pick a single instance to check history
+        # FIXME: avoid digging into chain's internals? are these internals?
+        instance = chain.instances[0].instance
+
+        interface = chain.chain_interface
+        if to is None:
+            to = interface.get_block(instance).height
+        if fromm is None:
+            fromm = to - 2
+
+        result = []
+        time = dateutil.parser.parse(interface.get_block(instance, fromm).time)
+        for i in xrange(fromm + 1, to):
+            newtime = dateutil.parser.parse(interface.get_block(instance, i).time)
+            delta = (newtime - time).total_seconds()
+            result.append(delta)
+            time = newtime
+
         return result

@@ -63,7 +63,7 @@ class Chain:
         and the second is the latest block in that instance
         :return:
         """
-        return [(region_instance_pair, self.chain_interface.get_latest_block(region_instance_pair.instance))
+        return [(region_instance_pair, self.chain_interface.get_block(region_instance_pair.instance))
                 for region_instance_pair in self.instances]
 
     def __str__(self):

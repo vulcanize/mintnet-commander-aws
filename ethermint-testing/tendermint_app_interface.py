@@ -19,10 +19,24 @@ class Block:
 
 class TendermintAppInterface:
     @staticmethod
-    def get_latest_block(ec2_instance):
-        r = requests.get(TENDERMINT_RPC_ENDPOINT(ec2_instance.public_ip_address) + "/status").json()['result'][1]
-        block = Block(r["latest_app_hash"], height=r["latest_block_height"], time=r["latest_block_time"])
-        return block
+    def prepare_rpc_result(raw):
+        return raw.json()['result'][1]
+
+    @staticmethod
+    def get_block(ec2_instance, block=None):
+        """
+        :param block: None for latest
+        """
+        if block is None:
+            raw = requests.get(TENDERMINT_RPC_ENDPOINT(ec2_instance.public_ip_address) + "/status")
+            r = TendermintAppInterface.prepare_rpc_result(raw)
+            return Block(r["latest_app_hash"], height=r["latest_block_height"], time=r["latest_block_time"])
+        else:
+            raw = requests.get("{}/block?height={}".format(TENDERMINT_RPC_ENDPOINT(ec2_instance.public_ip_address),
+                                                           block))
+            r = TendermintAppInterface.prepare_rpc_result(raw)
+            header = r["block"]["header"]
+            return Block(header["app_hash"], height=header["height"], time=header["time"])
 
 
 class EthermintInterface(object, TendermintAppInterface):
@@ -42,8 +56,11 @@ class EthermintInterface(object, TendermintAppInterface):
         return response.json()
 
     @staticmethod
-    def get_latest_block(ec2_instance):
-        tendermint_latest_block = super(EthermintInterface, EthermintInterface).get_latest_block(ec2_instance)
+    def get_block(ec2_instance, block=None):
+        """
+        :param block: None for latest
+        """
+        tendermint_latest_block = super(EthermintInterface, EthermintInterface).get_block(ec2_instance, block)
         ethermint_height = tendermint_latest_block.height - 1
 
         r = EthermintInterface._request(ec2_instance, "eth_getBlockByNumber", [str(ethermint_height), False])['result']
