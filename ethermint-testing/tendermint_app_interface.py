@@ -19,13 +19,12 @@ class TendermintBlock:
         elif "latest_app_hash" in data:
             self.hash = data["latest_app_hash"]
             self.height = data["latest_block_height"]
-            self.time = data["latest_block_time"]
+            self.time = datetime.fromtimestamp(data["latest_block_time"] / 1e9)
         else:
             raise ValueError("Unable to create TendermintBlock from {}".format(data))
 
-		# post-process
-		self.hash = self.hash.upper()
-		self.time = datetime.fromtimestamp(self.time / 1e9)
+        # post-process
+        self.hash = self.hash.upper()
 
 
 class GethBlock:
