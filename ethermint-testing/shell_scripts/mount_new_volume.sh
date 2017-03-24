@@ -11,6 +11,3 @@ sudo mount /dev/xvdh /ethermint
 
 # allow user ubuntu to write to it
 sudo chown ubuntu /ethermint
-
-# DEBUG ONLY
-echo "kocham placki" > /ethermint/test.txt

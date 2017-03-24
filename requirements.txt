@@ -9,3 +9,4 @@ pytest-cov
 tox
 PyYAML
 python-dateutil
+responses

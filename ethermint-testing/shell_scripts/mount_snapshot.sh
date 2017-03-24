@@ -5,6 +5,3 @@ sudo mkdir /ethermint
 
 # mount snapshot to /ethermint
 sudo mount /dev/xvdh /ethermint
-
-# DEBUG ONLY
-cat /ethermint/test.txt

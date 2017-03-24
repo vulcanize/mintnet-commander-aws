@@ -5,10 +5,11 @@ import os
 
 import boto3
 import pytest
+import responses
 from mock import MagicMock
 from moto import mock_ec2
 
-from chainmaker import Chainmaker
+from chainmanager import Chainmanager
 import fill_validators
 from amibuilder import AMIBuilder
 
@@ -38,6 +39,7 @@ def mockossystem(monkeypatch):
 @pytest.fixture()
 def ethermint_version():
     return ETHERMINT_VERSION
+
 
 @pytest.fixture()
 def mocksubprocess(monkeypatch, ethermint_version):
@@ -81,7 +83,7 @@ aws_secret_access_key = AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 def tmp_files_dir(tmpdir, monkeypatch):
     dir = str(tmpdir.mkdir("files"))
     monkeypatch.setattr('utils.DEFAULT_FILES_LOCATION', dir)
-    monkeypatch.setattr('chainmaker.DEFAULT_FILES_LOCATION', dir)
+    monkeypatch.setattr('chainmanager.DEFAULT_FILES_LOCATION', dir)
     return dir
 
 
@@ -127,12 +129,18 @@ def mockamibuilder(mockami, monkeypatch):
     mock = MagicMock(AMIBuilder)
     mock.create_ami.return_value = mockami
 
-    monkeypatch.setattr('chainmaker.AMIBuilder', MagicMock(return_value=mock))
+    monkeypatch.setattr('chainmanager.AMIBuilder', MagicMock(return_value=mock))
     return mock
 
 
 @pytest.fixture()
-def chainmaker(monkeypatch, mockossystem, mocksubprocess,
-               mockamibuilder, tmp_files_dir, fake_ethermint_files, moto):
+def chainmanager(monkeypatch, mockossystem, mocksubprocess,
+                 mockamibuilder, tmp_files_dir, fake_ethermint_files, moto):
     # generic "all mocked out" instance
-    return Chainmaker()
+    return Chainmanager()
+
+
+@pytest.fixture()
+def requests_mock():
+    with responses.RequestsMock() as rsps:
+        yield rsps
