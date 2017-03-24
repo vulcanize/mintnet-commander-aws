@@ -50,8 +50,8 @@ class Chainmanager:
 
     def get_roster(self, chains):
         """
-        Creates a common roster file for a group of chains to manage them using salt-ssh
-        :param chains: a list of chain objects
+        Generates a Salt-ssh roster from multiple chains
+        :param chains: a list of Chain objects
         :return: a dictionary
         """
         master_roster = {}
@@ -107,12 +107,12 @@ class Chainmanager:
     def create_ethermint_network(self, regions, ethermint_version,
                                  name_root="test", no_ami_cache=False):
         """
-        Creates an ethermint network consisting of multiple ethermint nodes
-        :param ethermint_version: the hash of the ethermint commit
-        :param name_root: the base of the AMI name
-        :param regions: a list of regions where instances will be run; we run 1 instance per region
-        :param update_salt_roster: indicates if the system /etc/salt/roster file should be updated
-        :return: a chain object
+        Creates an ethermint network in aws regions
+        :param regions: A list of regions; one instance is created per region
+        :param ethermint_version: hash (as str) or "local"
+        :param name_root: Root of the names of amis to create
+        :param no_ami_cache: Force rebuilding of Ethermint AMIs
+        :return: a Chain object
         """
         for check in ["tendermint version", "ethermint -h", "packer version"]:
             if not os.system(check) == 0:
@@ -203,20 +203,18 @@ class Chainmanager:
     @staticmethod
     def isalive(chain):
         """
-        Allows to quickly check if chain is alive; for more details, use status
-        :param chain:
-        :return:
+        Checks if the consensus on the chain is making progress; for more details, use status
+        :param chain: Chain object
+        :return: bool
         """
-        data = Chainmanager.get_status(chain)
-        return {"is_alive": data['is_alive'], "staleblocktimes": [{"name": r["name"], "time": r["last_block_time"]}
-                                                                  for r in data["nodes"] if not r["is_alive"]]}
+        return Chainmanager.get_status(chain)['is_alive']
 
     @staticmethod
     def get_status(chain):
         """
-        Allows to get defailed information about a chain including last block info
-        :param chain:
-        :return:
+        Checks the status of all of the nodes that form the chain
+        :param chain: Chain object
+        :return: dict
         """
         result = {'nodes': []}
         now = datetime.now()
