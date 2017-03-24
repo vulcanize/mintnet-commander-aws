@@ -3,15 +3,16 @@ Tools to orchestrate and run [ethermint](https://github.com/tendermint/ethermint
 
 ## Preparations
 
-1. Make sure AWS credentials are stored in the default directory. 
+1. Make sure AWS credentials are stored in the default directory.
+2. Install [packer](https://www.packer.io/)
 2. Install tendermint and ethermint:
 
 ```bash
-go install -x github.com/tendermint/ethermint/vendor/github.com/tendermint/tendermint/cmd/tendermint
 go install github.com/tendermint/ethermint/cmd/ethermint
+go install github.com/tendermint/ethermint/vendor/github.com/tendermint/tendermint/cmd/tendermint
 ```
 3. Clone repo and `pip install -r requirements.txt`
-4. Make sure `tendermint` and `ethermint` are in your path
+4. Make sure `tendermint`, `ethermint`, `packer` are in your path
 
 ## Quickstart
 
@@ -69,3 +70,15 @@ or to get more elaborate status report:
 ```bash
 python api.py status files/chain1.json
 ```
+
+## Todo overview
+
+**TODO** make issues out of this?
+
+ - using a fork of `ethermint`
+ - using remote `ethermint` install to `ethermint init`
+ - same for `tenderint gen_validator`?
+ - installing a different version of `ethermint` on `thaw`
+ - proper organization of chain/chainshot data like: chain names, tags on aws, ethermint versions, keys, owners
+ - `ntp` to get rid of time offsets on ec2
+ 
