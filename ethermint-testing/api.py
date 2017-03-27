@@ -41,7 +41,7 @@ def create(regions, ethermint_version, name_root, num_processes, no_ami_cache,
 
 @ethermint_testing.command(help='Makes a snapshot of a chain')
 @click.option('--name', default="Ethermint-network-chainshot", help='The name of the chainshot')
-@click.option('--output-file-path', help='Output chainshot file path (json)')
+@click.option('--output-file-path', required=True, help='Output chainshot file path (json)')
 @click.argument('chain-file', type=click.Path(exists=True))
 def chainshot(name, output_file_path, chain_file):
     with open(chain_file, 'r') as json_data:
@@ -56,7 +56,7 @@ def chainshot(name, output_file_path, chain_file):
 @click.argument('chainshot-file', type=click.Path(exists=True))
 @click.option('--num-processes', '-n', default=None, type=click.INT,
               help='specify >1 if you want to run instance creation in parallel using multiprocessing')
-@click.option('--output-file-path', help='Output chain file path (json)')
+@click.option('--output-file-path', required=True, help='Output chain file path (json)')
 def thaw(chainshot_file, num_processes, output_file_path):
     with open(chainshot_file) as json_data:
         chainshot = json.loads(json_data.read())
