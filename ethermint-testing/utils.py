@@ -171,7 +171,7 @@ def configure_ntp(chain):
         with open(filepath, 'w') as f:
             f.writelines(config)
         os.system(
-            "scp -o StrictHostKeyChecking=no -C -i {} -r {} ubuntu@{}:/etc/ntp.conf".format(
+            "scp -o StrictHostKeyChecking=no -C -i {} -r {} ubuntu@{}:/ethermint/ntp_conf".format(
                 get_shh_key_file(instance.key_name), filepath, instance.public_ip_address))
 
         run_sh_script("shell_scripts/restart_ntp.sh", instance.key_name, instance.public_ip_address)
