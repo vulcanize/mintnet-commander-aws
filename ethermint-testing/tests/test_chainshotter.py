@@ -25,14 +25,14 @@ def chainshotter(mockossystem, mocksubprocess):
 @pytest.fixture()
 def prepare_chainshot(chainmanager, chainshotter, mockregions, ethermint_version):
 
-    chain = chainmanager.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
+    chain = chainmanager.create_ethermint_network(mockregions, ethermint_version)
     return chainshotter.chainshot("Test", chain)
 
 
 @pytest.mark.parametrize('regionscount', [2])
 def test_chainshot_halts_restarts(chainshotter, mocksubprocess, mockregions, chainmanager, ethermint_version):
     # 2 instances to check if halt and start are in right order
-    chain = chainmanager.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
+    chain = chainmanager.create_ethermint_network(mockregions, ethermint_version)
     mocksubprocess.reset_mock()
 
     [instance1, instance2] = chain.instances
@@ -61,7 +61,7 @@ def test_chainshot_halts_restarts(chainshotter, mocksubprocess, mockregions, cha
 
 
 def test_chainshot_creates_snapshots(chainshotter, chainmanager, mockregions, ethermint_version):
-    chain = chainmanager.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
+    chain = chainmanager.create_ethermint_network(mockregions, ethermint_version)
     chainshotter.chainshot("Test", chain)
     total_snapshots = 0
     for region in set(mockregions):
@@ -76,7 +76,7 @@ def test_chainshot_creates_snapshots(chainshotter, chainmanager, mockregions, et
 def test_chainshot_return_data(chainshotter, chainmanager, mockregions, mockami, ethermint_version):
     time1 = datetime.datetime.utcnow().replace(microsecond=0)
     sleep(1)  # sleeping to put differentiate times from aws with second resolution and make test deterministic
-    chain = chainmanager.create_ethermint_network(mockregions, ethermint_version, "master_pub_key")
+    chain = chainmanager.create_ethermint_network(mockregions, ethermint_version)
     sleep(1)
     time2 = datetime.datetime.utcnow().replace(microsecond=0)
     sleep(1)

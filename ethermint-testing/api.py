@@ -1,6 +1,5 @@
 import json
 import logging
-import os
 
 import click
 import yaml
@@ -8,7 +7,6 @@ import yaml
 from chain import Chain
 from chainmanager import Chainmanager
 from chainshotter import Chainshotter
-from settings import DEFAULT_FILES_LOCATION
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -19,26 +17,20 @@ def ethermint_testing():
     pass
 
 
-@ethermint_testing.command()
+@ethermint_testing.command(help="Creates an ethermint network in aws regions")
 @click.option('--regions', '-r', required=True, default=None, type=click.STRING, multiple=True,
               help='A list of regions; one instance is created per region')
 @click.option('--ethermint-version', default="local", help='The hash of ethermints commit or local to use '
                                                            'local version in GOPATH (default)')
-@click.option('--master-pkey-name', required=True, help='')
 @click.option('--name-root', default="test", help='Root of the names of amis to create')
 @click.option('--num-processes', '-n', default=None, type=click.INT,
               help='specify >1 if you want to run instance creation in parallel using multiprocessing')
 @click.option('--no-ami-cache', is_flag=True, help='Force rebuilding of Ethermint AMIs')
-@click.option('--output-file-path', help='Output chainshot file path (json)')
-def create(regions, ethermint_version, master_pkey_name, name_root, num_processes, no_ami_cache,
+@click.option('--output-file-path', help='Output chain file path (json)')
+def create(regions, ethermint_version, name_root, num_processes, no_ami_cache,
            output_file_path):
-    """
-    Creates an ethermint network consisting of ethermint nodes
-    """
-    with open(os.path.join(DEFAULT_FILES_LOCATION, master_pkey_name + '.key.pub'), 'r') as f:
-        master_pub_key = f.read()
     chainmanager = Chainmanager(num_processes=num_processes)
-    chain = chainmanager.create_ethermint_network(regions, ethermint_version, master_pub_key, name_root,
+    chain = chainmanager.create_ethermint_network(regions, ethermint_version, name_root,
                                                   no_ami_cache=no_ami_cache)
 
     logger.info("Created a chain ".format(chain))
@@ -47,15 +39,11 @@ def create(regions, ethermint_version, master_pkey_name, name_root, num_processe
         json.dump(chain.serialize(), f, indent=2)
 
 
-@ethermint_testing.command(help='Pass as arguments the list of ethermint instance objects, '
-                                'supplied in "region:id" pairs')
+@ethermint_testing.command(help='Makes a snapshot of a chain')
 @click.option('--name', default="Ethermint-network-chainshot", help='The name of the chainshot')
 @click.option('--output-file-path', help='Output chainshot file path (json)')
 @click.argument('chain-file', type=click.Path(exists=True))
 def chainshot(name, output_file_path, chain_file):
-    """
-    Allows to create a chainshot of a network consisting of multiple ec2 instances
-    """
     with open(chain_file, 'r') as json_data:
         chain = Chain.deserialize(json.loads(json_data.read()))
     chainshot_data = Chainshotter().chainshot(name, chain)
@@ -64,22 +52,24 @@ def chainshot(name, output_file_path, chain_file):
     logger.info("The chainshot: {}".format(chainshot_data))
 
 
-@ethermint_testing.command()
+@ethermint_testing.command(help="Unfreezes a network from a chainshot file")
 @click.argument('chainshot-file', type=click.Path(exists=True))
 @click.option('--num-processes', '-n', default=None, type=click.INT,
               help='specify >1 if you want to run instance creation in parallel using multiprocessing')
-def thaw(chainshot_file, num_processes):
-    """
-    Allows to unfreeze a network from a config
-    """
+@click.option('--output-file-path', help='Output chain file path (json)')
+def thaw(chainshot_file, num_processes, output_file_path):
     with open(chainshot_file) as json_data:
         chainshot = json.loads(json_data.read())
 
     chain = Chainshotter(num_processes).thaw(chainshot)
-    print(chain)
+
+    logger.info("Thawed a chain {}".format(chain))
+
+    with open(output_file_path, 'w') as f:
+        json.dump(chain.serialize(), f, indent=2)
 
 
-@ethermint_testing.command(help="check if the consensus on the chain is making progress")
+@ethermint_testing.command(help="Checks if the consensus on the chain is making progress; for more details, use status")
 @click.argument('chain-file', type=click.Path(exists=True))
 def isalive(chain_file):
     with open(chain_file, 'r') as json_data:
@@ -87,7 +77,7 @@ def isalive(chain_file):
     print(Chainmanager.isalive(chain))
 
 
-@ethermint_testing.command(help="check the status of all of the nodes that form the chain")
+@ethermint_testing.command(help="Checks the status of all of the nodes that form the chain")
 @click.argument('chain-file', type=click.Path(exists=True))
 def status(chain_file):
     with open(chain_file, 'r') as json_data:
@@ -97,24 +87,16 @@ def status(chain_file):
 
 # for later, for now just for reference
 # def history(chain, fromm, to):
-#     b = {
-#         'nodes': [
-#             {
-#                 'name???': 'node1',
-#                 'blocktimes': ['isotime1', 'isotime2...'],
-#                 'txcounts': [0, 2]
-#             }
-#         ]
-#     }
+#     return block times or intervals. Possibly tx counts in blocks? TBD
 
 
-@ethermint_testing.command(help="usage: get_roster chain1.json chain2.json...")
+@ethermint_testing.command(help="Generates a Salt-ssh roster from multiple chains")
 @click.argument('chain_files', type=unicode, nargs=-1)
-def get_roster(chain_files):
+def roster(chain_files):
     chain_objects = []
     for chain_file in chain_files:
         with open(chain_file, 'r') as json_data:
-            chain_objects.append(Chain.deserialize(json.loads(json_data)))
+            chain_objects.append(Chain.deserialize(json.loads(json_data.read())))
     print yaml.dump(Chainmanager().get_roster(chain_objects), default_flow_style=False)
 
 
