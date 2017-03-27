@@ -11,6 +11,7 @@ from amibuilder import AMIBuilder
 from chain import RegionInstancePair, Chain
 from fill_validators import fill_validators, prepare_validators
 from instance_creator import InstanceCreator
+from ntp_configs import server_conf, client_conf
 from settings import DEFAULT_INSTANCE_NAME, \
     DEFAULT_SECURITY_GROUP_DESCRIPTION, DEFAULT_PORTS, \
     DEFAULT_FILES_LOCATION
@@ -105,7 +106,7 @@ class Chainmanager:
             return ethermint_version
 
     def create_ethermint_network(self, regions, ethermint_version, master_pub_key,
-                                 name_root="test", no_ami_cache=False):
+                                 name_root="test", no_ami_cache=False, configure_ntp=True):
         """
         Creates an ethermint network consisting of multiple ethermint nodes
         :param master_pub_key: master public key to be added to authorized keys
@@ -113,6 +114,7 @@ class Chainmanager:
         :param name_root: the base of the AMI name
         :param regions: a list of regions where instances will be run; we run 1 instance per region
         :param update_salt_roster: indicates if the system /etc/salt/roster file should be updated
+        :param configure_ntp: reconfigure NTP on machines by using custom configs
         :return: a chain object
         """
         for check in ["tendermint version", "ethermint -h", "packer version"]:
@@ -195,6 +197,20 @@ class Chainmanager:
                 raise RuntimeError("Instance {} appears to be running ethermint {} instead of {}".format(
                     node.id, real_version, ethermint_version
                 ))
+
+        if configure_ntp:
+            server_ip = None
+            for node in nodes:
+                config = None
+                if not server_ip:
+                    config = server_conf()
+                    server_ip = node.private_ip_address
+                else:
+                    config = client_conf(server_ip)
+                # copy the config to /etc/ntp.conf
+                # restart ntp
+                pass
+
 
         for node in nodes:
             logger.info("Ethermint instance ID: {} in {}".format(node.id, node.placement["AvailabilityZone"]))
