@@ -149,7 +149,7 @@ def test_mounting_ebs_and_running_on_thaw(chainshotter, mocksubprocess, prepare_
     instance = chain.instances[0]
 
     args_list = mocksubprocess.call_args_list
-    assert len(args_list) == 6
+    assert len(args_list) == 8
 
     assert args_list[0] == mock.call("ssh -o StrictHostKeyChecking=no -i {0} ubuntu@{1} "
                                      "'bash -s' < shell_scripts/mount_snapshot.sh".format(
@@ -164,6 +164,11 @@ def test_mounting_ebs_and_running_on_thaw(chainshotter, mocksubprocess, prepare_
 
     assert args_list[4] == mock.call("ssh -o StrictHostKeyChecking=no -i {0} ubuntu@{1} "
                                      "'bash -s' < shell_scripts/run_ethermint.sh".format(
+        get_shh_key_file(instance.key_name),
+        instance.public_ip_address), shell=True)
+
+    assert args_list[6] == mock.call("ssh -o StrictHostKeyChecking=no -i {0} ubuntu@{1} "
+                                     "'bash -s' < shell_scripts/restart_ntp.sh".format(
         get_shh_key_file(instance.key_name),
         instance.public_ip_address), shell=True)
 

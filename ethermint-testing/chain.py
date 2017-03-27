@@ -18,7 +18,7 @@ class RegionInstancePair:
         # borrow the properties from the boto3 Instance defined by region/id
         # set new properties on RegionInstancePair class by copying properties from self.instance
         for prop in ['key_name', 'public_ip_address', 'block_device_mappings', 'image_id', 'security_groups',
-                     'tags', 'volumes', 'placement']:
+                     'tags', 'volumes', 'placement', 'private_ip_address']:
             iife = lambda iife_prop: lambda innerself: getattr(innerself.instance, iife_prop)
             setattr(self.__class__, prop, property(iife(prop)))
 

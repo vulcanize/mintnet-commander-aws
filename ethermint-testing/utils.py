@@ -9,6 +9,7 @@ import time
 
 import pytz
 
+from ntp_configs import server_conf, client_conf
 from settings import DEFAULT_FILES_LOCATION, MAX_MACHINE_CALL_TRIES, DEFAULT_LIVENESS_THRESHOLD
 
 logger = logging.getLogger(__name__)
@@ -150,3 +151,27 @@ def to_utc_iso(dt):
     :return: the date and time formatted to string in UTC
     """
     return pytz.utc.localize(dt).strftime("%Y-%m-%dT%H:%M:%S.%f%z")
+
+
+def configure_ntp(chain):
+    """
+    
+    :param chain: 
+    :return: 
+    """
+    server_ip = None
+    for instance in chain.instances:
+        if not server_ip:
+            config = server_conf()
+            server_ip = instance.private_ip_address
+        else:
+            config = client_conf(server_ip)
+
+        filepath = os.path.join(DEFAULT_FILES_LOCATION, "ntp-conf-" + str(instance.id))
+        with open(filepath, 'w') as f:
+            f.writelines(config)
+        os.system(
+            "scp -o StrictHostKeyChecking=no -C -i {} -r {} ubuntu@{}:/etc/ntp.conf".format(
+                get_shh_key_file(instance.key_name), filepath, instance.public_ip_address))
+
+        run_sh_script("shell_scripts/restart_ntp.sh", instance.key_name, instance.public_ip_address)

@@ -11,11 +11,10 @@ from amibuilder import AMIBuilder
 from chain import RegionInstancePair, Chain
 from fill_validators import fill_validators, prepare_validators
 from instance_creator import InstanceCreator
-from ntp_configs import server_conf, client_conf
 from settings import DEFAULT_INSTANCE_NAME, \
     DEFAULT_SECURITY_GROUP_DESCRIPTION, DEFAULT_PORTS, \
     DEFAULT_FILES_LOCATION
-from utils import create_keyfile, run_sh_script, get_shh_key_file, run_ethermint, is_alive, to_utc_iso
+from utils import create_keyfile, run_sh_script, get_shh_key_file, run_ethermint, is_alive, to_utc_iso, configure_ntp
 
 logger = logging.getLogger(__name__)
 
@@ -106,14 +105,14 @@ class Chainmanager:
             return ethermint_version
 
     def create_ethermint_network(self, regions, ethermint_version,
-                                 name_root="test", no_ami_cache=False, configure_ntp=True):
+                                 name_root="test", no_ami_cache=False, do_configure_ntp=True):
         """
         Creates an ethermint network in aws regions
         :param regions: A list of regions; one instance is created per region
         :param ethermint_version: hash (as str) or "local"
         :param name_root: Root of the names of amis to create
         :param no_ami_cache: Force rebuilding of Ethermint AMIs
-        :param configure_ntp: reconfigure NTP on machines by using custom configs
+        :param do_configure_ntp: reconfigure NTP on machines by using custom configs
         :return: a Chain object
         """
         for check in ["tendermint version", "ethermint -h", "packer version"]:
@@ -197,19 +196,8 @@ class Chainmanager:
                     node.id, real_version, ethermint_version
                 ))
 
-        if configure_ntp:
-            server_ip = None
-            for node in nodes:
-                config = None
-                if not server_ip:
-                    config = server_conf()
-                    server_ip = node.private_ip_address
-                else:
-                    config = client_conf(server_ip)
-                # copy the config to /etc/ntp.conf
-                # restart ntp
-                pass
-
+        if do_configure_ntp:
+            configure_ntp(chain)
 
         for node in nodes:
             logger.info("Ethermint instance ID: {} in {}".format(node.id, node.placement["AvailabilityZone"]))

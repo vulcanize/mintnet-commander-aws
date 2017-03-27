@@ -6,7 +6,7 @@ from chain import Chain
 from chainmanager import RegionInstancePair
 from instance_creator import InstanceCreator
 from settings import DEFAULT_DEVICE
-from utils import run_sh_script, get_region_name, run_ethermint, halt_ethermint
+from utils import run_sh_script, get_region_name, run_ethermint, halt_ethermint, configure_ntp
 from waiting_for_ec2 import wait_for_available_volume
 
 logger = logging.getLogger(__name__)
@@ -129,6 +129,7 @@ class Chainshotter:
 
         chain = Chain(map(RegionInstancePair.from_boto, instances))
         run_ethermint(chain)
+        configure_ntp(chain)
 
         logger.info("Done starting ethermint on instances")
 
