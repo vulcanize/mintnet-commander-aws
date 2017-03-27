@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo xtrace
 
 echo "date before forging:"
 date

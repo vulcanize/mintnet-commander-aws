@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 set -euo xtrace
 
 # wait for ec2 to become fully up

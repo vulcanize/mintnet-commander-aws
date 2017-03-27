@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo xtrace
 
 # create dir to mount to
 sudo mkdir /ethermint

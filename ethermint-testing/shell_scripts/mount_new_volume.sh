@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo xtrace
 
 # format to ext4
 sudo mkfs -t ext4 /dev/xvdh
