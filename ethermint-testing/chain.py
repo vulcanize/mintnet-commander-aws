@@ -76,7 +76,8 @@ class Chain:
         for region_instance_pair in self.instances:
             result["instances"].append(dict(instance={
                 "id": region_instance_pair.id,
-                "region": region_instance_pair.region_name
+                "region": region_instance_pair.region_name,
+                "key_name": region_instance_pair.key_name,
             }))
         return result
 

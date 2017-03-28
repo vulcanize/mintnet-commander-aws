@@ -18,10 +18,10 @@ class Chainshotter:
 
     def chainshot(self, name, chain):
         """
-        Allows to snapshot a chain and save a json file with all chainshot info
+        Makes a snapshot of a chain
 
-        :param chain: the chain object to be snapshot
-        :param name: the name (ID) of the snapshot
+        :param chain: Chain object
+        :param name: The name of the chainshot
         :return: a dictionary containing the snapshot info
         """
         results = {
@@ -87,12 +87,14 @@ class Chainshotter:
 
     def thaw(self, chainshot):
         """
-        Allows to unfreeze a chain using configuration file. For each snapshot/instance in the file,
+        Unfreezes a network from a chainshot file
+
+        For each snapshot/instance in the file,
         it restarts the instance (by creating a new instance with the same parameters) and attaches the snapshot
         as volume and mounts it
 
         :param chainshot: the config created by chainshot()
-        :return: a list of AWS instances
+        :return: Chain object
         """
         instances = []
 

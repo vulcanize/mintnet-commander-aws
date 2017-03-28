@@ -28,7 +28,7 @@ class Chainmanager:
         """
         Creates a security group in AWS based on ports
         :param name: the name of the newly created group
-        :param ports: a list of ports as ints
+        :param ports: a list of tuples (ports as ints, protocol (tcp/udp))
         :param region: the AWS region
         :return: the SecurityGroup object
         """
@@ -36,10 +36,10 @@ class Chainmanager:
         security_group = ec2.create_security_group(GroupName=name,
                                                    Description=DEFAULT_SECURITY_GROUP_DESCRIPTION)
         logger.info("Security group {} created".format(name))
-        for port in ports:
+        for (port, protocol) in ports:
             security_group.authorize_ingress(IpPermissions=[
                 {
-                    'IpProtocol': 'tcp',
+                    'IpProtocol': protocol,
                     'FromPort': port,
                     'ToPort': port,
                     'IpRanges': [{'CidrIp': '0.0.0.0/0'}]
@@ -51,8 +51,8 @@ class Chainmanager:
 
     def get_roster(self, chains):
         """
-        Creates a common roster file for a group of chains to manage them using salt-ssh
-        :param chains: a list of chain objects
+        Generates a Salt-ssh roster from multiple chains
+        :param chains: a list of Chain objects
         :return: a dictionary
         """
         master_roster = {}
@@ -105,16 +105,15 @@ class Chainmanager:
         else:
             return ethermint_version
 
-    def create_ethermint_network(self, regions, ethermint_version, master_pub_key,
+    def create_ethermint_network(self, regions, ethermint_version,
                                  name_root="test", no_ami_cache=False):
         """
-        Creates an ethermint network consisting of multiple ethermint nodes
-        :param master_pub_key: master public key to be added to authorized keys
-        :param ethermint_version: the hash of the ethermint commit
-        :param name_root: the base of the AMI name
-        :param regions: a list of regions where instances will be run; we run 1 instance per region
-        :param update_salt_roster: indicates if the system /etc/salt/roster file should be updated
-        :return: a chain object
+        Creates an ethermint network in aws regions
+        :param regions: A list of regions; one instance is created per region
+        :param ethermint_version: hash (as str) or "local"
+        :param name_root: Root of the names of amis to create
+        :param no_ami_cache: Force rebuilding of Ethermint AMIs
+        :return: a Chain object
         """
         for check in ["tendermint version", "ethermint -h", "packer version"]:
             if not os.system(check) == 0:
@@ -126,7 +125,7 @@ class Chainmanager:
 
         # Find AMI ID for each region and create AMIs if missing
         amis = {}
-        ami_builder = AMIBuilder(master_pub_key, packer_file_name="packer-file-ethermint-salt-ssh")
+        ami_builder = AMIBuilder(packer_file_name="packer-file-ethermint-salt-ssh")
         for region in distinct_regions:
             ec2 = boto3.resource('ec2', region_name=region)
             images = list(ec2.images.filter(Owners=['self'], Filters=[{'Name': 'tag:Ethermint',
@@ -205,20 +204,18 @@ class Chainmanager:
     @staticmethod
     def isalive(chain):
         """
-        Allows to quickly check if chain is alive; for more details, use status
-        :param chain:
-        :return:
+        Checks if the consensus on the chain is making progress; for more details, use status
+        :param chain: Chain object
+        :return: bool
         """
-        data = Chainmanager.get_status(chain)
-        return {"is_alive": data['is_alive'], "staleblocktimes": [{"name": r["name"], "time": r["last_block_time"]}
-                                                                  for r in data["nodes"] if not r["is_alive"]]}
+        return Chainmanager.get_status(chain)['is_alive']
 
     @staticmethod
     def get_status(chain):
         """
-        Allows to get defailed information about a chain including last block info
-        :param chain:
-        :return:
+        Checks the status of all of the nodes that form the chain
+        :param chain: Chain object
+        :return: dict
         """
         result = {'nodes': []}
         now = datetime.now()
