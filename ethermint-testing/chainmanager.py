@@ -239,22 +239,27 @@ class Chainmanager:
 
     @staticmethod
     def get_history(chain, fromm=None, to=None):
-        if fromm + 1 >= to:
-            raise ValueError("need at least 1 block between from and two to get block times")
         # FIXME: just pick a single instance to check history
         # FIXME: avoid digging into chain's internals? are these internals?
+        # FIXME: rethink avoiding off-by-one errors with fromm/to according to some convention.
+        #        Currently: returns to - from deltas, so to is inclusive, a'la tendermint RPC
         instance = chain.instances[0].instance
 
         interface = chain.chain_interface
         if to is None:
             to = interface.get_block(instance).height
         if fromm is None:
-            fromm = to - 2
+            fromm = to - 1
+        if fromm + 1 > to:
+            raise ValueError("need at least 1 block between from and two to get block times")
 
         result = []
-        time = dateutil.parser.parse(interface.get_block(instance, fromm).time)
-        for i in xrange(fromm + 1, to):
-            newtime = dateutil.parser.parse(interface.get_block(instance, i).time)
+
+        blocks = list(reversed(interface.get_blocks(instance, fromm, to)))
+
+        time = dateutil.parser.parse(blocks[0].time)
+        for block in blocks[1:]:
+            newtime = dateutil.parser.parse(block.time)
             delta = (newtime - time).total_seconds()
             result.append(delta)
             time = newtime
