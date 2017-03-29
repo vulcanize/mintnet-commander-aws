@@ -1,0 +1,23 @@
+ec2-base-public:
+  minion:
+    master: <MASTER_IP>
+  id: <ID>
+  key: '<KEY>'
+  private_key: /etc/salt/aws-master.pem
+  keyname: aws-master
+  ssh_interface: private_ips
+  securitygroup: <SECURITY_GROUP_NAME>
+  driver: ec2
+  del_root_vol_on_destroy: True
+  del_all_vols_on_destroy: True
+  rename_on_destroy: True
+
+ec2-ap-northeast-1-public:
+  - extends: ec2-base-public:ec2
+    location: ap-northeast-1
+    availability_zone: ap-northeast-1a
+
+ec2-ap-southeast-1-public:
+  - extends: ec2-base-public:ec2
+    location: ap-southeast-1
+    availability_zone: ap-southeast-1a

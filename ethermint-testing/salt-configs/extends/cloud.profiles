@@ -1,0 +1,15 @@
+base_profile:
+  size: t2.micro
+  ssh_username: ubuntu
+  tag: {'TendermintApp': 'ethermint'}
+  sync_after_install: grains
+
+ec2_northeast_micro:
+  provider: ec2-ap-northeast-1-public
+  image: ami-50eaed51 
+  extends: base_profile
+
+ec2_southeast_micro:
+  provider: ec2-ap-southeast-1-public
+  image: ami-f95875ab
+  extends: base_profile

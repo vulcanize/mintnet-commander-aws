@@ -1,0 +1,7 @@
+ec2_northeast_micro:
+  - ethermint1
+  - ethermint2
+
+ec2_southeast_micro:
+  - ethermint3
+  - ethermint4
