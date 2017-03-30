@@ -2,7 +2,7 @@ import logging
 import os
 import subprocess
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from uuid import uuid4
 
 import boto3
@@ -265,3 +265,29 @@ class Chainmanager:
             time = newtime
 
         return result
+
+    @staticmethod
+    def get_network_fault(chain, num_steps, delay_step, interval):
+        start_block = Chainmanager.get_status(chain)['nodes'][0]['height']
+
+        remote_synchronized_time = run_sh_script('shell_scripts/get_datetime.sh',
+                                                 chain.instances[0].key_name,
+                                                 chain.instances[0].public_ip_address)
+
+        time_to_prepare = timedelta(seconds=5 * len(chain.instances))
+
+        delay_start_time = dateutil.parser.parse(remote_synchronized_time) + time_to_prepare
+
+        delaying_command = 'shell_scripts/run_tcs.sh {} {} {} {} {}'.format(
+            num_steps,
+            delay_step,
+            interval,
+            'eth0',
+            delay_start_time.isoformat()
+        )
+
+        run_sh_script(delaying_command,
+                      chain.instances[0].key_name,
+                      chain.instances[0].public_ip_address)
+
+        return Chainmanager.get_history(chain, fromm=start_block)
