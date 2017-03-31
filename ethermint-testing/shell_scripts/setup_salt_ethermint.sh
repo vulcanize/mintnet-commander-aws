@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+
 set -euo xtrace
 
 # wait for ec2 to become fully up
@@ -14,6 +15,7 @@ sudo apt-get install -y build-essential git python
 # install and turn on NTP to be used to synchronize time across machines
 sudo apt-get install -y ntp ntpdate sysv-rc-conf
 sudo sysv-rc-conf ntpd on
+ntpq -p  # check peers list
 
 # install golang 1.7
 sudo curl -O https://storage.googleapis.com/golang/go1.7.4.linux-amd64.tar.gz

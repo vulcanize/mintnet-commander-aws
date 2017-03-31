@@ -71,14 +71,108 @@ or to get more elaborate status report:
 python api.py status files/chain1.json
 ```
 
+## Input/Output formats by example
+
+1. `create`
+  - input: list of AWS regions given in commandline: `-r us-east-1 -r -us-west-1 -r -us-west-1 ...`
+  - output: chain `.json` file:
+  
+    ```
+    {
+      "instances": [
+        {
+          "instance": {
+            "key_name": "salt-instance-1490723614_e7752aa786bc4f2b901c5cdf11a47e26", 
+            "region": "us-west-1", 
+            "id": "i-06f49a63e848bcb6f"
+          }
+        }, ...
+      ], 
+      "type": "ethermint", 
+      "name": ""
+    }
+    ```
+        
+  - output: ssh key `.pem` file 
+2. `chainshot`
+  - input: chain `.json` file
+  - output: chainshot `.json` file
+  
+    ```
+    {
+      "instances": [
+        {
+          "instance": {
+            "availablility_zone": "us-west-1b", 
+            "ami": "ami-29a3f849", 
+            "key_name": "salt-instance-1490723614_e7752aa786bc4f2b901c5cdf11a47e26", 
+            "tags": [
+              {
+                "Value": "test-ethermint-ami-29a3f8490", 
+                "Key": "Name"
+              }
+            ], 
+            "vpc_id": "vpc-0835e76c", 
+            "region": "us-west-1", 
+            "id": "i-06f49a63e848bcb6f", 
+            "security_groups": [
+              "ethermint-security_group-salt-ssh-2017-03-28 19:53:27.612893"
+            ]
+          }, 
+          "snapshot": {
+            "to": "2017-03-30T12:03:54+00:00", 
+            "from": "2017-03-28T17:53:35+00:00", 
+            "id": "snap-08358ddeefd7a0ec8"
+          }
+        }, ...
+      ], 
+      "chainshot_name": "Ethermint-network-chainshot"
+    }
+    ```
+3. `thaw`
+  - input: chainshot `.json` file
+  - output: chain `.json` file
+4. `status`
+  - input: chain `.json` file (or files for `roster`)
+  - output: status `.json`
+  
+    ```
+    {
+       "is_alive" : true,
+       "height" : 107338,
+       "nodes" : [
+          {
+             "instance_region" : "us-west-1",
+             "is_alive" : true,
+             "last_block_time" : "2017-03-30T14:13:12.993000+0000",
+             "instance_id" : "i-06f49a63e848bcb6f",
+             "name" : "test-ethermint-ami-29a3f8490",
+             "height" : 107337,
+             "last_block_height" : 107337
+          }, ...
+       ],
+       "age" : null
+    }
+    ```
+
+5. `history`
+  - input: chain `.json` file (or files for `roster`)
+  - output: history `.csv` (? - WIP)
+6. `roster`
+  - input: chain `.json` file (or files for `roster`)
+  - output: salt-ssh [roster YAML](https://docs.saltstack.com/en/latest/topics/ssh/roster.html) 
+7. `isalive`
+  - input: chain `.json` file (or files for `roster`)
+  - output: `True` / `False`
+
 ## Todo overview
 
 **TODO** make issues out of this?
 
+ - rethink input/output formats
+ - proper organization of chain/chainshot data like: chain names, tags on aws, ethermint versions, keys, owners
  - using a fork of `ethermint`
  - using remote `ethermint` install to `ethermint init`
  - same for `tenderint gen_validator`?
  - installing a different version of `ethermint` on `thaw`
- - proper organization of chain/chainshot data like: chain names, tags on aws, ethermint versions, keys, owners
- - `ntp` to get rid of time offsets on ec2
  
