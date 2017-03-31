@@ -54,3 +54,12 @@ Let's say there's a file `/srv/salt/ethermint.sls` which defines a state with et
 ```bash
 sudo salt -v '*' state.apply ethermint -l debug
 ```
+
+
+# LEFT TODO
+
+* For now, cloud and apply are two separate commands, which should be mergable. This can be done (according to the docs) by either specifing `startup_states` for the profile or [using reactor](https://docs.saltstack.com/en/latest/topics/cloud/reactor.html#example-reactor-based-highstate). Neither worked for me.
+* Snapshot
+* Thaw
+* Variables, pillar files the right way
+* Generative profiles and providers (using jinja; how to force jinja to actually process them?)

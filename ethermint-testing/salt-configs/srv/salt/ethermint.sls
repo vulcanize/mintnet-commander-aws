@@ -21,8 +21,6 @@ format-volume:
       - cmd: format-volume
     - onlyif:
       - test -b /dev/xvdh
-    - unless:
-      - cat /proc/mounts | grep --quiet --no-messages /ethermint/
 
 go-dependencies:
   pkg.installed:
