@@ -8,7 +8,7 @@ sudo apt-get update
 sudo apt-get install python-software-properties salt-master salt-cloud
 ```
 
-Install the newest salt-master:
+Update to the newest salt-master:
 ```bash
 curl -L https://bootstrap.saltstack.com -o install_salt.sh
 sudo sh install_salt.sh -P -M
