@@ -10,3 +10,4 @@ tox
 PyYAML
 python-dateutil
 responses
+pathos

@@ -7,6 +7,7 @@ from uuid import uuid4
 
 import boto3
 import dateutil
+from pathos.multiprocessing import ProcessingPool
 
 from amibuilder import AMIBuilder
 from chain import RegionInstancePair, Chain
@@ -18,6 +19,8 @@ from settings import DEFAULT_INSTANCE_NAME, \
 from utils import create_keyfile, run_sh_script, get_shh_key_file, run_ethermint, is_alive, to_utc_iso
 
 logger = logging.getLogger(__name__)
+
+TESTING = False
 
 
 class Chainmanager:
@@ -286,8 +289,20 @@ class Chainmanager:
             delay_start_time.isoformat()
         )
 
-        run_sh_script(delaying_command,
-                      chain.instances[0].key_name,
-                      chain.instances[0].public_ip_address)
+        if not TESTING:
+            # NOTE: only this branch actually does the job
+            pool = ProcessingPool(len(chain.instances))
+            pool.map((lambda instance:
+                      run_sh_script(delaying_command,
+                                    instance.key_name,
+                                    instance.public_ip_address)), chain.instances)
+            pool.close()
+            pool.join()
+        else:
+            # this is only in case where we're mocking and we cannot use multiprocessing of any form
+            for instance in chain.instances:
+                run_sh_script(delaying_command,
+                              instance.key_name,
+                              instance.public_ip_address)
 
         return Chainmanager.get_history(chain, fromm=start_block)
