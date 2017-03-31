@@ -1,4 +1,4 @@
-def server_conf(broadcast_mask="172.31.31.255"):
+def server_conf(broadcast_mask="172.31.255.255"):
     return """
 # /etc/ntp.conf, configuration for ntpd
 driftfile /var/lib/ntp/ntp.drift
