@@ -109,8 +109,10 @@ def history(chain_file, fromm, to):
 def network_fault(chain_file, num_steps, delay_step, interval):
     with open(chain_file, 'r') as f:
         chain = Chain.deserialize(json.loads(f.read()))
-    to_print = "\n".join([str(c) for c in Chainmanager.get_network_fault(chain, num_steps, delay_step, interval)])
-    print(to_print)
+
+    result = Chainmanager.get_network_fault(chain, num_steps, delay_step, interval)
+
+    print(json.dumps(result))
 
 
 @ethermint_testing.command(help="Generates a Salt-ssh roster from multiple chains")

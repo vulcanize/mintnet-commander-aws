@@ -264,20 +264,22 @@ class Chainmanager:
         for block in blocks[1:]:
             newtime = dateutil.parser.parse(block.time)
             delta = (newtime - time).total_seconds()
-            result.append(delta)
+            result.append((delta, newtime.isoformat()))
             time = newtime
 
         return result
 
     @staticmethod
     def get_network_fault(chain, num_steps, delay_step, interval):
+        # FIXME: using zeroth instance height & time as reference, consider checking instances' synchronisation?
         start_block = Chainmanager.get_status(chain)['nodes'][0]['height']
 
+        # NOTE: "synchronized" is assumed here, should be in sync if NTP is running out there...
         remote_synchronized_time = run_sh_script('shell_scripts/get_datetime.sh',
                                                  chain.instances[0].key_name,
                                                  chain.instances[0].public_ip_address)
 
-        time_to_prepare = timedelta(seconds=5 * len(chain.instances))
+        time_to_prepare = timedelta(seconds=10 * len(chain.instances))
 
         delay_start_time = dateutil.parser.parse(remote_synchronized_time) + time_to_prepare
 
@@ -290,19 +292,30 @@ class Chainmanager:
         )
 
         if not TESTING:
-            # NOTE: only this branch actually does the job
+            # NOTE: only this branch actually does the job, delaying_command must be run in parallel
             pool = ProcessingPool(len(chain.instances))
-            pool.map((lambda instance:
-                      run_sh_script(delaying_command,
-                                    instance.key_name,
-                                    instance.public_ip_address)), chain.instances)
+            delay_step_times = pool.map((lambda instance:
+                                         run_sh_script(delaying_command,
+                                                       instance.key_name,
+                                                       instance.public_ip_address)), chain.instances)
             pool.close()
             pool.join()
         else:
             # this is only in case where we're mocking and we cannot use multiprocessing of any form
+            delay_step_times = []
             for instance in chain.instances:
-                run_sh_script(delaying_command,
-                              instance.key_name,
-                              instance.public_ip_address)
+                step_time = run_sh_script(delaying_command,
+                                          instance.key_name,
+                                          instance.public_ip_address)
+                delay_step_times.append(step_time)
 
-        return Chainmanager.get_history(chain, fromm=start_block)
+        # delay_step_times is a by-instance array of strings of by-step delays
+        # grab zeroth instance results for now
+        # FIXME: check consistence of per instance results?
+        single_delay_step_times = delay_step_times[0].split('\n')
+
+        delays = [delay_step * step for step in xrange(1, num_steps + 1)]
+        delays.append(0)
+
+        return dict(blocktimes=Chainmanager.get_history(chain, fromm=start_block),
+                    delay_steps=zip(delays, single_delay_step_times))
