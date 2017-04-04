@@ -19,6 +19,8 @@ from settings import DEFAULT_INSTANCE_NAME, \
     DEFAULT_FILES_LOCATION
 from utils import create_keyfile, run_sh_script, get_shh_key_file, run_ethermint, is_alive
 
+NETWORK_FAULT_PREPARATION_TIME_PER_INSTANCE = 10
+
 logger = logging.getLogger(__name__)
 
 TESTING = False
@@ -265,7 +267,7 @@ class Chainmanager:
         for block in blocks[1:]:
             newtime = dateutil.parser.parse(block.time)
             delta = (newtime - time).total_seconds()
-            result.append((delta, newtime.isoformat()))
+            result.append((delta, newtime.isoformat(), block.height))
             time = newtime
 
         return result
@@ -280,7 +282,7 @@ class Chainmanager:
                                                  chain.instances[0].key_name,
                                                  chain.instances[0].public_ip_address)
 
-        time_to_prepare = timedelta(seconds=10 * len(chain.instances))
+        time_to_prepare = timedelta(seconds=NETWORK_FAULT_PREPARATION_TIME_PER_INSTANCE * len(chain.instances))
 
         delay_start_time = dateutil.parser.parse(remote_synchronized_time) + time_to_prepare
 
@@ -316,6 +318,7 @@ class Chainmanager:
         single_delay_step_times = delay_step_times[0].split('\n')
 
         delays = [delay_step * step for step in xrange(1, num_steps + 1)]
+        # this zero relates to the last remote time measurement - final deleting of the netem delay
         delays.append(0)
 
         return dict(blocktimes=Chainmanager.get_history(chain, fromm=start_block),

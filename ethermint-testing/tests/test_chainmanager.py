@@ -1,13 +1,13 @@
 import os
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import boto3
 import pytest
 import pytz
 from mock.mock import MagicMock
 
-from chainmanager import Chainmanager
+from chainmanager import Chainmanager, NETWORK_FAULT_PREPARATION_TIME_PER_INSTANCE
 from settings import DEFAULT_DEVICE, DEFAULT_PORTS, DEFAULT_LIVENESS_THRESHOLD
 from tendermint_app_interface import EthermintException
 from utils import get_shh_key_file
@@ -397,3 +397,126 @@ def test_local_ethermint_version(chainmanager, mocksubprocess, mockregions):
 
     # good version
     chainmanager.create_ethermint_network(mockregions, "local")
+
+
+@pytest.mark.parametrize('regionscount', [1])
+def test_history_default_to_fromm(requests_mock, chain, mock_ethermint_requests):
+    ip = chain.instances[0].public_ip_address
+    t = datetime.now(tz=pytz.UTC)
+
+    def reset_mocks():
+        mock_ethermint_requests(10, t, "hash", [inst.public_ip_address for inst in chain.instances])
+        requests_mock.add(requests_mock.GET,
+                          re.compile(r'http://' + ip + r':46657/blockchain\?minHeight=9\&maxHeight=10'),
+                          json={"result": [0, {'block_metas': [{'header': {'app_hash': "",
+                                                                           'height': "",
+                                                                           'time': t.isoformat()}}]}]},
+                          status=200)
+
+    reset_mocks()
+    history1 = Chainmanager.get_history(chain, 9)
+
+    reset_mocks()
+    history2 = Chainmanager.get_history(chain)
+
+    assert history1 == history2
+
+
+@pytest.mark.parametrize('regionscount', [1])
+def test_history_gets_blocks(requests_mock, chain):
+    ip = chain.instances[0].public_ip_address
+    t = datetime.now(tz=pytz.UTC)
+    height = 18
+
+    requests_mock.add(requests_mock.GET, re.compile(r'http://' + ip + r':46657/blockchain\?minHeight=1\&maxHeight=10'),
+                      json={"result": [0, {'block_metas': 10 * [{'header': {'app_hash': "",
+                                                                            'height': height,
+                                                                            'time': t.isoformat()}}]}]},
+                      status=200)
+
+    history = Chainmanager.get_history(chain, 1, 10)
+
+    check_history(history, 9, 0, height, t)
+
+
+def check_history(history, expected_length, first_difference, first_height, first_time):
+    """
+    Does a quick check of history correctness, as returned by get_history
+    :param history:
+    :param expected_length: how many entries should it have
+    :param first_difference: what should be the first block duration be, ie block time difference
+    :param first_height: ...
+    :param first_time: ... (datetime)
+    :return:
+    """
+    assert len(history) == expected_length  # history is block intervals so 10 - 1
+    assert history[0][0] == first_difference  # difference between t and t as all block are from time t
+    assert history[0][1] == first_time.isoformat()
+    assert history[0][2] == first_height  # fake height!
+
+
+@pytest.mark.parametrize('regionscount', [1])
+def test_history_invalid_from_to(chain):
+    with pytest.raises(ValueError):
+        Chainmanager.get_history(chain, 123, 1)
+
+
+@pytest.mark.parametrize('regionscount', [2])
+def test_history_loooks_at_first_node_only(chain, requests_mock):
+    chain.instances[1] = None  # shouldn't interfere
+    ip = chain.instances[0].public_ip_address
+    t = datetime.now(tz=pytz.UTC)
+
+    requests_mock.add(requests_mock.GET, re.compile(r'http://' + ip + r':46657/blockchain\?minHeight=1\&maxHeight=10'),
+                      json={"result": [0, {'block_metas': 10 * [{'header': {'app_hash': "",
+                                                                            'height': "",
+                                                                            'time': t.isoformat()}}]}]},
+                      status=200)
+
+    Chainmanager.get_history(chain, 1, 10)
+
+
+@pytest.mark.parametrize('regionscount', [2])
+def test_network_fault(requests_mock, chain, mock_ethermint_requests, mocksubprocess):
+    # FIXME: test-all smoke test for now, consider splitting into separate logical assertions
+    ip = chain.instances[0].public_ip_address
+    t = datetime.now(tz=pytz.UTC)
+
+    mock_ethermint_requests(1, t, "hash", [ip])
+    mock_ethermint_requests(10, t + timedelta(seconds=10), "hash2",
+                            [inst.public_ip_address for inst in chain.instances])
+    requests_mock.add(requests_mock.GET, re.compile(r'http://' + ip + r':46657/blockchain\?minHeight=1\&maxHeight=10'),
+                      json={"result": [0, {'block_metas': 10 * [{'header': {'app_hash': "",
+                                                                            'height': "",
+                                                                            'time': t.isoformat()}}]}]},
+                      status=200)
+
+    # fake time when a remote machine should report having run it's tc command
+    delay_step_time1 = (t+timedelta(seconds=5)).isoformat()
+    delay_step_time2 = (t+timedelta(seconds=7)).isoformat()
+    delay_step_time3 = (t+timedelta(seconds=7)).isoformat()
+
+    def _side_effect(*args, **kwargs):
+        if "get_datetime.sh" in args[0]:
+            assert ip in args[0]  # only instance 0 is queried for date
+            return t.isoformat()
+        elif "run_tcs.sh" in args[0]:
+            assert "run_tcs.sh 2 123 1 eth0 {}".format(
+                (t+timedelta(seconds=(NETWORK_FAULT_PREPARATION_TIME_PER_INSTANCE * len(chain.instances)))).isoformat()
+            ) in args[0]
+            assert any([inst.public_ip_address in args[0] for inst in chain.instances])
+            return "{}\n{}\n{}".format(delay_step_time1, delay_step_time2, delay_step_time3)
+
+        assert False
+
+    mocksubprocess.side_effect = _side_effect
+
+    result = Chainmanager.get_network_fault(chain, 2, 123, 1)
+
+    check_history(result["blocktimes"], 9, 0, "", t)
+    assert len(result["delay_steps"]) == 3
+    assert result["delay_steps"] == [
+        (123, delay_step_time1),
+        (246, delay_step_time2),
+        (0, delay_step_time3)
+    ]
