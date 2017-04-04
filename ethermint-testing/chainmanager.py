@@ -2,10 +2,13 @@ import logging
 import os
 import subprocess
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from uuid import uuid4
 
 import boto3
+import dateutil
+import pytz
+from pathos.multiprocessing import ProcessingPool
 
 from amibuilder import AMIBuilder
 from chain import RegionInstancePair, Chain
@@ -13,10 +16,14 @@ from fill_validators import fill_validators, prepare_validators
 from instance_creator import InstanceCreator
 from settings import DEFAULT_INSTANCE_NAME, \
     DEFAULT_SECURITY_GROUP_DESCRIPTION, DEFAULT_PORTS, \
-    DEFAULT_FILES_LOCATION
-from utils import create_keyfile, run_sh_script, get_shh_key_file, run_ethermint, is_alive, to_utc_iso
+    DEFAULT_FILES_LOCATION, DEFAULT_LIVENESS_THRESHOLD
+from utils import create_keyfile, run_sh_script, get_shh_key_file, run_ethermint
+
+NETWORK_FAULT_PREPARATION_TIME_PER_INSTANCE = 10
 
 logger = logging.getLogger(__name__)
+
+TESTING = False
 
 
 class Chainmanager:
@@ -210,6 +217,10 @@ class Chainmanager:
         return Chainmanager.get_status(chain)['is_alive']
 
     @staticmethod
+    def _is_alive(block, now):
+        return abs((now - block.time).total_seconds()) <= DEFAULT_LIVENESS_THRESHOLD.total_seconds()
+
+    @staticmethod
     def get_status(chain):
         """
         Checks the status of all of the nodes that form the chain
@@ -217,7 +228,7 @@ class Chainmanager:
         :return: dict
         """
         result = {'nodes': []}
-        now = datetime.now()
+        now = datetime.now(tz=pytz.UTC)
 
         for region_instance_pair in chain.instances:
             last_block = chain.chain_interface.get_latest_block(region_instance_pair.instance)
@@ -226,12 +237,93 @@ class Chainmanager:
                 'instance_region': region_instance_pair.region_name,
                 'name': region_instance_pair.instance_name,
                 'height': last_block.height,
-                'last_block_time': to_utc_iso(last_block.time),
+                'last_block_time': last_block.time.isoformat(),
                 'last_block_height': last_block.height,
-                'is_alive': is_alive(last_block, now=now)
+                'is_alive': Chainmanager._is_alive(last_block, now)
             })
         result['is_alive'] = all(node['is_alive'] for node in result['nodes'])
         heights = map(lambda node: node['height'], result['nodes'])
         result['height'] = reduce(lambda x, y: x + y, heights) / len(heights)
         result['age'] = None  # TODO: the total time that the chain has been running
         return result
+
+    @staticmethod
+    def get_history(chain, fromm=None, to=None):
+        # FIXME: just pick a single instance to check history
+        # FIXME: avoid digging into chain's internals? are these internals?
+        # FIXME: rethink avoiding off-by-one errors with fromm/to according to some convention.
+        #        Currently: returns to - from deltas, so to is inclusive, a'la tendermint RPC
+        instance = chain.instances[0].instance
+
+        interface = chain.chain_interface
+        if to is None:
+            to = interface.get_latest_block(instance).height
+        if fromm is None:
+            fromm = to - 1
+        if fromm + 1 > to:
+            raise ValueError("need at least 1 block between from and two to get block times")
+
+        result = []
+
+        blocks = list(reversed(interface.get_blocks(instance, fromm, to)))
+
+        time = dateutil.parser.parse(blocks[0].time)
+        for block in blocks[1:]:
+            newtime = dateutil.parser.parse(block.time)
+            delta = (newtime - time).total_seconds()
+            result.append((delta, newtime.isoformat(), block.height))
+            time = newtime
+
+        return result
+
+    @staticmethod
+    def get_network_fault(chain, num_steps, delay_step, interval):
+        # FIXME: using zeroth instance height & time as reference, consider checking instances' synchronisation?
+        start_block = Chainmanager.get_status(chain)['nodes'][0]['height']
+
+        # NOTE: "synchronized" is assumed here, should be in sync if NTP is running out there...
+        remote_synchronized_time = run_sh_script('shell_scripts/get_datetime.sh',
+                                                 chain.instances[0].key_name,
+                                                 chain.instances[0].public_ip_address)
+
+        time_to_prepare = timedelta(seconds=NETWORK_FAULT_PREPARATION_TIME_PER_INSTANCE * len(chain.instances))
+
+        delay_start_time = dateutil.parser.parse(remote_synchronized_time) + time_to_prepare
+
+        delaying_command = 'shell_scripts/run_tcs.sh {} {} {} {} {}'.format(
+            num_steps,
+            delay_step,
+            interval,
+            'eth0',
+            delay_start_time.isoformat()
+        )
+
+        if not TESTING:
+            # NOTE: only this branch actually does the job, delaying_command must be run in parallel
+            pool = ProcessingPool(len(chain.instances))
+            delay_step_times = pool.map((lambda instance:
+                                         run_sh_script(delaying_command,
+                                                       instance.key_name,
+                                                       instance.public_ip_address)), chain.instances)
+            pool.close()
+            pool.join()
+        else:
+            # this is only in case where we're mocking and we cannot use multiprocessing of any form
+            delay_step_times = []
+            for instance in chain.instances:
+                step_time = run_sh_script(delaying_command,
+                                          instance.key_name,
+                                          instance.public_ip_address)
+                delay_step_times.append(step_time)
+
+        # delay_step_times is a by-instance array of strings of by-step delays
+        # grab zeroth instance results for now
+        # FIXME: check consistence of per instance results?
+        single_delay_step_times = delay_step_times[0].split('\n')
+
+        delays = [delay_step * step for step in xrange(1, num_steps + 1)]
+        # this zero relates to the last remote time measurement - final deleting of the netem delay
+        delays.append(0)
+
+        return dict(blocktimes=Chainmanager.get_history(chain, fromm=start_block),
+                    delay_steps=zip(delays, single_delay_step_times))

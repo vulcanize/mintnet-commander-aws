@@ -85,9 +85,34 @@ def status(chain_file):
     print(json.dumps(Chainmanager.get_status(chain)))
 
 
-# for later, for now just for reference
-# def history(chain, fromm, to):
-#     return block times or intervals. Possibly tx counts in blocks? TBD
+@ethermint_testing.command(help="get history of chain performance")
+@click.option('--fromm', '-f', default=None, type=click.INT,
+              help='earliest block to look at')
+@click.option('--to', '-t', default=None, type=click.INT,
+              help='earliest block to not look at (i.e. exclusive/pythonish to)')
+@click.argument('chain-file', type=click.Path(exists=True))
+def history(chain_file, fromm, to):
+    with open(chain_file, 'r') as f:
+        chain = Chain.deserialize(json.loads(f.read()))
+    to_print = "\n".join([str(c) for c in Chainmanager.get_history(chain, fromm, to)])
+    print(to_print)
+
+
+@ethermint_testing.command(help="get history of chain performance")
+@click.option('--num-steps', '-s', default=1, type=click.INT,
+              help='number of delay increases to make')
+@click.option('--delay-step', '-d', default=100, type=click.INT,
+              help='duration of delay to increase by every step (ms)')
+@click.option('--interval', '-i', default=5, type=click.INT,
+              help='duration of interval between delay increase steps (s)')
+@click.argument('chain-file', type=click.Path(exists=True))
+def network_fault(chain_file, num_steps, delay_step, interval):
+    with open(chain_file, 'r') as f:
+        chain = Chain.deserialize(json.loads(f.read()))
+
+    result = Chainmanager.get_network_fault(chain, num_steps, delay_step, interval)
+
+    print(json.dumps(result))
 
 
 @ethermint_testing.command(help="Generates a Salt-ssh roster from multiple chains")

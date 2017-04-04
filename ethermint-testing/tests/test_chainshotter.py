@@ -1,6 +1,7 @@
 from time import sleep
 import datetime
 
+import pytz
 import boto3
 import dateutil.parser
 import mock
@@ -74,15 +75,15 @@ def test_chainshot_creates_snapshots(chainshotter, chainmanager, mockregions, et
 
 
 def test_chainshot_return_data(chainshotter, chainmanager, mockregions, mockami, ethermint_version):
-    time1 = datetime.datetime.utcnow().replace(microsecond=0)
+    time1 = datetime.datetime.now(tz=pytz.UTC).replace(microsecond=0)
     sleep(1)  # sleeping to put differentiate times from aws with second resolution and make test deterministic
     chain = chainmanager.create_ethermint_network(mockregions, ethermint_version)
     sleep(1)
-    time2 = datetime.datetime.utcnow().replace(microsecond=0)
+    time2 = datetime.datetime.now(tz=pytz.UTC).replace(microsecond=0)
     sleep(1)
     chainshot_data = chainshotter.chainshot("Test", chain)
     sleep(1)
-    time3 = datetime.datetime.utcnow().replace(microsecond=0)
+    time3 = datetime.datetime.now(tz=pytz.UTC).replace(microsecond=0)
 
     snapshots_in_regions = {}
     for region in set(mockregions):
@@ -104,8 +105,8 @@ def test_chainshot_return_data(chainshotter, chainmanager, mockregions, mockami,
         assert data["instance"]["key_name"] == chain.instances[i].key_name
         assert data["instance"]["security_groups"][0] == chain.instances[i].security_groups[0]['GroupName']
 
-        snapshot_from = dateutil.parser.parse(data["snapshot"]["from"], ignoretz=True)
-        snapshot_to = dateutil.parser.parse(data["snapshot"]["to"], ignoretz=True)
+        snapshot_from = dateutil.parser.parse(data["snapshot"]["from"])
+        snapshot_to = dateutil.parser.parse(data["snapshot"]["to"])
 
         assert time1 < snapshot_from < time2
         assert time2 < snapshot_to < time3

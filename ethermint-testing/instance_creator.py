@@ -36,7 +36,7 @@ class InstanceCreator:
             # run in parallel, but this fails tests (because of moto), hence is based on an option
             # tried multiprocessing.ThreadPool which is ok with moto but has random errors
             # so, the default for tests is the sequential version above
-            pool = multiprocessing.Pool(len(config))
+            pool = multiprocessing.Pool(self.num_processes)
             instances_ids = pool.map_async(_create_instance, config).get(600)
             pool.close()
             pool.join()

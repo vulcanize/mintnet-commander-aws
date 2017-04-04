@@ -42,7 +42,7 @@ DEFAULT_DEVICE = '/dev/sdh'
 DEFAULT_FILES_LOCATION = os.path.join(os.getcwd(), "files")
 
 # how many times to try when connecting to an instance using SSH
-MAX_MACHINE_CALL_TRIES = 10
+MAX_MACHINE_CALL_TRIES = 5
 
 # how much time difference can there be between multiple nodes for a certain block to consider the nodes as in sync
 DEFAULT_LIVENESS_THRESHOLD = datetime.timedelta(seconds=10)

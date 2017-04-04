@@ -1,6 +1,8 @@
 import json
 from datetime import datetime
 
+import dateutil
+import pytz
 import requests
 
 
@@ -9,24 +11,59 @@ class EthermintException(Exception):
         super(EthermintException, self).__init__(message)
 
 
-class Block:
-    def __init__(self, hash, height=None, time=None):
-        self.hash = hash.upper()
-        self.height = height
-        self.time = time  # datetime object
+class TendermintBlock:
+    def __init__(self, data):
+        if "header" in data:
+            header = data["header"]
+            self.hash = header["app_hash"]
+            self.height = header["height"]
+            self.time = header["time"]
+        elif "latest_app_hash" in data:
+            self.hash = data["latest_app_hash"]
+            self.height = data["latest_block_height"]
+            self.time = datetime.fromtimestamp(data["latest_block_time"] / 1e9, tz=pytz.UTC)
+        else:
+            raise ValueError("Unable to create TendermintBlock from {}".format(data))
+
+        # post-process
+        self.hash = self.hash.upper()
+
+
+class GethBlock:
+    def __init__(self, data):
+        self.hash = data["hash"][2:].upper()
+        self.height = int(data["number"], 16)
+        self.time = datetime.fromtimestamp(int(data["timestamp"], 16), tz=pytz.UTC)
 
 
 class TendermintAppInterface:
     @staticmethod
-    def rpc(ip):
-        return "http://{}:46657".format(ip)
+    def prepare_rpc_result(raw):
+        return raw.json()['result'][1]
 
     @staticmethod
     def get_latest_block(ec2_instance):
-        r = requests.get(TendermintAppInterface.rpc(ec2_instance.public_ip_address) + "/status").json()['result'][1]
-        t = datetime.fromtimestamp(r["latest_block_time"] / 1e9)
-        block = Block(r["latest_app_hash"], height=r["latest_block_height"], time=t)
-        return block
+        """
+        NOTE: this had a versions allowing to specify block in 6de9c6269c09c252f32b1b2f970e631aa1d2c3ba
+        """
+        raw = requests.get(TendermintAppInterface.rpc(ec2_instance.public_ip_address) + "/status")
+        r = TendermintAppInterface.prepare_rpc_result(raw)
+        return TendermintBlock(r)
+
+    @staticmethod
+    def get_blocks(ec2_instance, fromm, to):
+        request_template = "{}/blockchain?minHeight={}&maxHeight={}"
+        raw = requests.get(request_template.format(TendermintAppInterface.rpc(ec2_instance.public_ip_address),
+                                                   fromm,
+                                                   to))
+        r = TendermintAppInterface.prepare_rpc_result(raw)['block_metas']
+
+        return [TendermintBlock(block_meta) for block_meta in r]
+
+
+    @staticmethod
+    def rpc(ip):
+        return "http://{}:46657".format(ip)
 
 
 class EthermintInterface(object, TendermintAppInterface):
@@ -51,14 +88,26 @@ class EthermintInterface(object, TendermintAppInterface):
 
     @staticmethod
     def get_latest_block(ec2_instance):
+        """
+        Note that this checks block integrity between TM and ETH, while get_blocks doesn't
+        :param block: None for latest
+        """
         tendermint_latest_block = super(EthermintInterface, EthermintInterface).get_latest_block(ec2_instance)
         ethermint_height = tendermint_latest_block.height - 1
 
         r = EthermintInterface._request(ec2_instance, "eth_getBlockByNumber", [str(ethermint_height), False])['result']
-        height = int(r["number"], 16)
-        last_ethereum_block = Block(r["hash"][2:], height=height, time=datetime.fromtimestamp(int(r["timestamp"], 16)))
+        last_ethereum_block = GethBlock(r)
 
-        if last_ethereum_block.height + 1 != tendermint_latest_block.height \
-                or last_ethereum_block.hash != tendermint_latest_block.hash:
-            raise EthermintException("Geth/tendermint not in sync in instance {}".format(ec2_instance.id))
+        if last_ethereum_block.height + 1 != tendermint_latest_block.height:
+            raise EthermintException("Geth/tendermint not in sync in instance {} (height)".format(ec2_instance.id))
+        if last_ethereum_block.hash != tendermint_latest_block.hash:
+            raise EthermintException("Geth/tendermint not in sync in instance {} (hash)".format(ec2_instance.id))
         return tendermint_latest_block
+
+    @staticmethod
+    def get_blocks(ec2_instance, fromm, to):
+        """
+        Doesn't check TM-ETH integrity of blocks
+        :return: list
+        """
+        return super(EthermintInterface, EthermintInterface).get_blocks(ec2_instance, fromm, to)
