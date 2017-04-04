@@ -16,8 +16,8 @@ from fill_validators import fill_validators, prepare_validators
 from instance_creator import InstanceCreator
 from settings import DEFAULT_INSTANCE_NAME, \
     DEFAULT_SECURITY_GROUP_DESCRIPTION, DEFAULT_PORTS, \
-    DEFAULT_FILES_LOCATION
-from utils import create_keyfile, run_sh_script, get_shh_key_file, run_ethermint, is_alive
+    DEFAULT_FILES_LOCATION, DEFAULT_LIVENESS_THRESHOLD
+from utils import create_keyfile, run_sh_script, get_shh_key_file, run_ethermint
 
 NETWORK_FAULT_PREPARATION_TIME_PER_INSTANCE = 10
 
@@ -217,6 +217,10 @@ class Chainmanager:
         return Chainmanager.get_status(chain)['is_alive']
 
     @staticmethod
+    def _is_alive(block, now):
+        return abs((now - block.time).total_seconds()) <= DEFAULT_LIVENESS_THRESHOLD.total_seconds()
+
+    @staticmethod
     def get_status(chain):
         """
         Checks the status of all of the nodes that form the chain
@@ -227,7 +231,7 @@ class Chainmanager:
         now = datetime.now(tz=pytz.UTC)
 
         for region_instance_pair in chain.instances:
-            last_block = chain.chain_interface.get_block(region_instance_pair.instance)
+            last_block = chain.chain_interface.get_latest_block(region_instance_pair.instance)
             result['nodes'].append({
                 'instance_id': region_instance_pair.id,
                 'instance_region': region_instance_pair.region_name,
@@ -235,7 +239,7 @@ class Chainmanager:
                 'height': last_block.height,
                 'last_block_time': last_block.time.isoformat(),
                 'last_block_height': last_block.height,
-                'is_alive': is_alive(last_block, now=now)
+                'is_alive': Chainmanager._is_alive(last_block, now)
             })
         result['is_alive'] = all(node['is_alive'] for node in result['nodes'])
         heights = map(lambda node: node['height'], result['nodes'])
@@ -253,7 +257,7 @@ class Chainmanager:
 
         interface = chain.chain_interface
         if to is None:
-            to = interface.get_block(instance).height
+            to = interface.get_latest_block(instance).height
         if fromm is None:
             fromm = to - 1
         if fromm + 1 > to:

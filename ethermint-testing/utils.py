@@ -1,15 +1,12 @@
 import os
 import subprocess
-from datetime import datetime
 
 import boto3
 import logging
 
 import time
 
-import pytz
-
-from settings import DEFAULT_FILES_LOCATION, MAX_MACHINE_CALL_TRIES, DEFAULT_LIVENESS_THRESHOLD
+from settings import DEFAULT_FILES_LOCATION, MAX_MACHINE_CALL_TRIES
 
 logger = logging.getLogger(__name__)
 
@@ -136,9 +133,3 @@ def halt_ethermint(chain):
         run_sh_script("shell_scripts/halt_ethermint.sh",
                       instance.key_name,
                       instance.public_ip_address)
-
-
-def is_alive(block, now=None, liveness_threshold=DEFAULT_LIVENESS_THRESHOLD):
-    if not now:
-        now = datetime.now(tz=pytz.UTC)
-    return abs((now - block.time).total_seconds()) <= liveness_threshold.total_seconds()

@@ -42,20 +42,13 @@ class TendermintAppInterface:
         return raw.json()['result'][1]
 
     @staticmethod
-    def get_block(ec2_instance, block=None):
+    def get_latest_block(ec2_instance):
         """
-        :param block: None for latest
+        NOTE: this had a versions allowing to specify block in 6de9c6269c09c252f32b1b2f970e631aa1d2c3ba
         """
-        if block is None:
-            raw = requests.get(TendermintAppInterface.rpc(ec2_instance.public_ip_address) + "/status")
-            r = TendermintAppInterface.prepare_rpc_result(raw)
-            return TendermintBlock(r)
-        else:
-            raw = requests.get("{}/block?height={}".format(TendermintAppInterface.rpc(ec2_instance.public_ip_address),
-                                                           block))
-            r = TendermintAppInterface.prepare_rpc_result(raw)["block"]
-
-            return TendermintBlock(r)
+        raw = requests.get(TendermintAppInterface.rpc(ec2_instance.public_ip_address) + "/status")
+        r = TendermintAppInterface.prepare_rpc_result(raw)
+        return TendermintBlock(r)
 
     @staticmethod
     def get_blocks(ec2_instance, fromm, to):
@@ -94,12 +87,12 @@ class EthermintInterface(object, TendermintAppInterface):
         return "http://{}:8545".format(ip)
 
     @staticmethod
-    def get_block(ec2_instance, block=None):
+    def get_latest_block(ec2_instance):
         """
         Note that this checks block integrity between TM and ETH, while get_blocks doesn't
         :param block: None for latest
         """
-        tendermint_latest_block = super(EthermintInterface, EthermintInterface).get_block(ec2_instance, block)
+        tendermint_latest_block = super(EthermintInterface, EthermintInterface).get_latest_block(ec2_instance)
         ethermint_height = tendermint_latest_block.height - 1
 
         r = EthermintInterface._request(ec2_instance, "eth_getBlockByNumber", [str(ethermint_height), False])['result']
