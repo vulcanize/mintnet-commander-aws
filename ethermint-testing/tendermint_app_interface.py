@@ -1,6 +1,8 @@
 import json
 from datetime import datetime
 
+import dateutil
+import pytz
 import requests
 
 
@@ -19,7 +21,7 @@ class TendermintBlock:
         elif "latest_app_hash" in data:
             self.hash = data["latest_app_hash"]
             self.height = data["latest_block_height"]
-            self.time = datetime.fromtimestamp(data["latest_block_time"] / 1e9)
+            self.time = datetime.fromtimestamp(data["latest_block_time"] / 1e9, tz=pytz.UTC)
         else:
             raise ValueError("Unable to create TendermintBlock from {}".format(data))
 
@@ -31,7 +33,7 @@ class GethBlock:
     def __init__(self, data):
         self.hash = data["hash"][2:].upper()
         self.height = int(data["number"], 16)
-        self.time = datetime.fromtimestamp(int(data["timestamp"], 16))
+        self.time = datetime.fromtimestamp(int(data["timestamp"], 16), tz=pytz.UTC)
 
 
 class TendermintAppInterface:

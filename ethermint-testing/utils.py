@@ -140,13 +140,5 @@ def halt_ethermint(chain):
 
 def is_alive(block, now=None, liveness_threshold=DEFAULT_LIVENESS_THRESHOLD):
     if not now:
-        now = datetime.now()
-    return abs(now - block.time) <= liveness_threshold
-
-
-def to_utc_iso(dt):
-    """
-    :param dt: datetime object
-    :return: the date and time formatted to string in UTC
-    """
-    return pytz.utc.localize(dt).strftime("%Y-%m-%dT%H:%M:%S.%f%z")
+        now = datetime.now(tz=pytz.UTC)
+    return abs((now - block.time).total_seconds()) <= liveness_threshold.total_seconds()

@@ -1,16 +1,16 @@
 import os
 import re
-import time
 from datetime import datetime
 
 import boto3
 import pytest
+import pytz
 from mock.mock import MagicMock
 
 from chainmanager import Chainmanager
 from settings import DEFAULT_DEVICE, DEFAULT_PORTS, DEFAULT_LIVENESS_THRESHOLD
 from tendermint_app_interface import EthermintException
-from utils import get_shh_key_file, to_utc_iso
+from utils import get_shh_key_file
 
 
 @pytest.fixture()
@@ -237,13 +237,14 @@ def mock_ethermint_requests(requests_mock):
         """
         for ip in ip_list:
             requests_mock.add(requests_mock.GET, re.compile(r'http://' + ip + r':46657/status'),
-                              json={"result": [0, {"latest_block_height": height, "latest_block_time": time * 1e9,
+                              json={"result": [0, {"latest_block_height": height,
+                                                   "latest_block_time": to_timestamp(time) * 1e9,
                                                    "latest_app_hash": apphash}]},
                               status=200)
 
             requests_mock.add(requests_mock.POST, re.compile(r'http://' + ip + r':8545'),
                               json={"result": {"number": hex(height - 1), "hash": "0x" + apphash,
-                                               "timestamp": hex(int(time))}},
+                                               "timestamp": hex(int(to_timestamp(time)))}},
                               status=200)
     return _mock
 
@@ -251,7 +252,7 @@ def mock_ethermint_requests(requests_mock):
 @pytest.mark.parametrize('regionscount', [2])
 def test_get_status(chainmanager, chain, mock_ethermint_requests):
     height = 123
-    t = time.time()  # create blocks that are alive
+    t = datetime.now(tz=pytz.UTC)  # create blocks that are alive
     mock_ethermint_requests(height, t, "hash", [inst.public_ip_address for inst in chain.instances])
 
     result = chainmanager.get_status(chain)
@@ -264,32 +265,19 @@ def test_get_status(chainmanager, chain, mock_ethermint_requests):
     assert result_instance['instance_region'] == instance.region_name
     assert result_instance['name'] == instance.instance_name
     assert result_instance['height'] == height
-    assert result_instance['last_block_time'] == to_utc_iso(datetime.fromtimestamp(t))
+    assert result_instance['last_block_time'] == t.isoformat()
     assert result_instance['last_block_height'] == height
     assert result_instance['is_alive']
 
 
 def to_timestamp(dt):
-    return (dt - datetime(1970, 1, 1)).total_seconds()
-
-
-@pytest.mark.parametrize('regionscount', [2])
-def test_get_status_all_dead(chainmanager, chain, mock_ethermint_requests):
-    t = to_timestamp(datetime.now() - DEFAULT_LIVENESS_THRESHOLD)  # create too old blocks
-    mock_ethermint_requests(123, t, "hash", [inst.public_ip_address for inst in chain.instances])
-
-    result = chainmanager.get_status(chain)
-    assert not result["is_alive"]
-    assert len(result["nodes"]) == len(chain.instances)
-    for instance in result['nodes']:
-        assert not instance['is_alive']
-        assert instance['last_block_time'] == to_utc_iso(datetime.fromtimestamp(t))
+    return (dt - datetime(1970, 1, 1, tzinfo=pytz.UTC)).total_seconds()
 
 
 @pytest.mark.parametrize('regionscount', [2])
 def test_get_status_one_dead(chainmanager, chain, mock_ethermint_requests):
-    mock_ethermint_requests(123, time.time(), "hash", [inst.public_ip_address for inst in chain.instances[1:]])
-    mock_ethermint_requests(123, to_timestamp(datetime.now() - DEFAULT_LIVENESS_THRESHOLD), "hash",
+    mock_ethermint_requests(123, datetime.now(tz=pytz.UTC), "hash", [inst.public_ip_address for inst in chain.instances[1:]])
+    mock_ethermint_requests(123, datetime.now(tz=pytz.UTC) - DEFAULT_LIVENESS_THRESHOLD, "hash",
                             [chain.instances[0].public_ip_address])
 
     result = chainmanager.get_status(chain)
@@ -302,17 +290,17 @@ def test_get_status_ethermint_out_of_sync(chainmanager, chain, requests_mock):
     ip = chain.instances[0].public_ip_address
     height = 123
     apphash = "hash"
-    t = time.time()
+    t = datetime.now(tz=pytz.UTC)
 
     # different hashes
     requests_mock.add(requests_mock.GET, re.compile(r'http://' + ip + r':46657/status'),
-                      json={"result": [0, {"latest_block_height": height, "latest_block_time": t * 1e9,
+                      json={"result": [0, {"latest_block_height": height, "latest_block_time": to_timestamp(t) * 1e9,
                                            "latest_app_hash": apphash + "0"}]},
                       status=200)
 
     requests_mock.add(requests_mock.POST, re.compile(r'http://' + ip + r':8545'),
                       json={"result": {"number": hex(height - 1), "hash": "0x" + apphash,
-                                       "timestamp": hex(int(t))}},
+                                       "timestamp": hex(int(to_timestamp(t)))}},
                       status=200)
 
     with pytest.raises(EthermintException):
@@ -320,13 +308,13 @@ def test_get_status_ethermint_out_of_sync(chainmanager, chain, requests_mock):
 
     # no heights difference (geth H app hash should be in tendermint H+1 block)
     requests_mock.add(requests_mock.GET, re.compile(r'http://' + ip + r':46657/status'),
-                      json={"result": [0, {"latest_block_height": height, "latest_block_time": t * 1e9,
+                      json={"result": [0, {"latest_block_height": height, "latest_block_time": to_timestamp(t) * 1e9,
                                            "latest_app_hash": apphash}]},
                       status=200)
 
     requests_mock.add(requests_mock.POST, re.compile(r'http://' + ip + r':8545'),
                       json={"result": {"number": hex(height), "hash": "0x" + apphash,
-                                       "timestamp": hex(int(t))}},
+                                       "timestamp": hex(int(to_timestamp(t)))}},
                       status=200)
 
     with pytest.raises(EthermintException):
@@ -336,7 +324,7 @@ def test_get_status_ethermint_out_of_sync(chainmanager, chain, requests_mock):
 @pytest.mark.parametrize('regionscount', [5, 6])
 def test_get_status_average_height(chainmanager, chain, mock_ethermint_requests, regionscount):
     for i, instance in enumerate(chain.instances):
-        mock_ethermint_requests(i + 1, time.time(), "hash", [instance.public_ip_address])
+        mock_ethermint_requests(i + 1, datetime.now(tz=pytz.UTC), "hash", [instance.public_ip_address])
 
     result = chainmanager.get_status(chain)
     assert result["is_alive"]
