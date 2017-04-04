@@ -217,7 +217,8 @@ class Chainmanager:
         return Chainmanager.get_status(chain)['is_alive']
 
     @staticmethod
-    def _is_alive(block, now):
+    def _is_alive(block):
+        now = datetime.now(tz=pytz.UTC)
         return abs((now - block.time).total_seconds()) <= DEFAULT_LIVENESS_THRESHOLD.total_seconds()
 
     @staticmethod
@@ -228,7 +229,6 @@ class Chainmanager:
         :return: dict
         """
         result = {'nodes': []}
-        now = datetime.now(tz=pytz.UTC)
 
         for region_instance_pair in chain.instances:
             last_block = chain.chain_interface.get_latest_block(region_instance_pair.instance)
@@ -239,7 +239,7 @@ class Chainmanager:
                 'height': last_block.height,
                 'last_block_time': last_block.time.isoformat(),
                 'last_block_height': last_block.height,
-                'is_alive': Chainmanager._is_alive(last_block, now)
+                'is_alive': Chainmanager._is_alive(last_block)
             })
         result['is_alive'] = all(node['is_alive'] for node in result['nodes'])
         heights = map(lambda node: node['height'], result['nodes'])
