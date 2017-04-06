@@ -23,8 +23,10 @@ From `ethermint-testing` directory:
 Create an ethermint network spanning 2 regions:
 
 ```bash
-python api.py create -r us-west-1 -r us-east-1 --output-file-path files/chain1.json
+python api.py create -r us-west-1 -r us-east-1 files/chain1.json
 ```
+
+> **NOTE** In this and following commands input/output files can be `-` for unix-style indication to read from stdin/out.
 
 Relevant data about the chain are dumped to the json file. Use this file to reference the chain in subsequent commands.
 
@@ -37,13 +39,13 @@ A network can be chainshot (a snapshot of each node's chain data can be saved) a
 To chainshot a network:
 
 ```bash
-python api.py chainshot --output-file-path files/chainshot1.json files/chain1.json
+python api.py chainshot files/chain1.json files/chainshot1.json
 ```
 
 Thawing can be done using the chainshot file like so:
 
 ```bash
-python api.py thaw --output-file-path files/thawed_chain1.json files/chainshot1.json
+python api.py thaw files/chainshot1.json files/thawed_chain1.json
 ```
 
 Thawing creates new instances from snapshots, loads the chain data snapshots and resumes the consensus process.

@@ -26,62 +26,56 @@ def ethermint_testing():
 @click.option('--num-processes', '-n', default=None, type=click.INT,
               help='specify >1 if you want to run instance creation in parallel using multiprocessing')
 @click.option('--no-ami-cache', is_flag=True, help='Force rebuilding of Ethermint AMIs')
-@click.option('--output-file-path', help='Output chain file path (json)')
-def create(regions, ethermint_version, name_root, num_processes, no_ami_cache,
-           output_file_path):
+@click.argument('chain-file', type=click.File('wb'))
+def create(regions, ethermint_version, name_root, num_processes, no_ami_cache, chain_file):
     chainmanager = Chainmanager(num_processes=num_processes)
     chain = chainmanager.create_ethermint_network(regions, ethermint_version, name_root,
                                                   no_ami_cache=no_ami_cache)
 
-    logger.info("Created a chain ".format(chain))
+    chain_file.write(json.dumps(chain.serialize()))
 
-    with open(output_file_path, 'w') as f:
-        json.dump(chain.serialize(), f, indent=2)
+    logger.info("Created a chain ".format(chain))
 
 
 @ethermint_testing.command(help='Makes a snapshot of a chain')
 @click.option('--name', default="Ethermint-network-chainshot", help='The name of the chainshot')
-@click.option('--output-file-path', help='Output chainshot file path (json)')
-@click.argument('chain-file', type=click.Path(exists=True))
-def chainshot(name, output_file_path, chain_file):
-    with open(chain_file, 'r') as json_data:
-        chain = Chain.deserialize(json.loads(json_data.read()))
+@click.argument('chain-file', type=click.File('rb'))
+@click.argument('chainshot-file', type=click.File('wb'))
+def chainshot(name, chain_file, chainshot_file):
+    chain = Chain.deserialize(json.loads(chain_file.read()))
     chainshot_data = Chainshotter().chainshot(name, chain)
-    with open(output_file_path, 'w') as f:
-        json.dump(chainshot_data, f, indent=2)
+
+    chainshot_file.write(json.dumps(chainshot_data))
+
     logger.info("The chainshot: {}".format(chainshot_data))
 
 
 @ethermint_testing.command(help="Unfreezes a network from a chainshot file")
-@click.argument('chainshot-file', type=click.Path(exists=True))
+@click.argument('chainshot-file', type=click.File('rb'))
+@click.argument('chain-file', type=click.File('wb'))
 @click.option('--num-processes', '-n', default=None, type=click.INT,
               help='specify >1 if you want to run instance creation in parallel using multiprocessing')
-@click.option('--output-file-path', help='Output chain file path (json)')
-def thaw(chainshot_file, num_processes, output_file_path):
-    with open(chainshot_file) as json_data:
-        chainshot = json.loads(json_data.read())
+def thaw(chainshot_file, chain_file, num_processes):
+    chainshot = json.loads(chainshot_file.read())
 
     chain = Chainshotter(num_processes).thaw(chainshot)
 
-    logger.info("Thawed a chain {}".format(chain))
+    chain_file.write(json.dumps(chain.serialize()))
 
-    with open(output_file_path, 'w') as f:
-        json.dump(chain.serialize(), f, indent=2)
+    logger.info("Thawed a chain {}".format(chain))
 
 
 @ethermint_testing.command(help="Checks if the consensus on the chain is making progress; for more details, use status")
-@click.argument('chain-file', type=click.Path(exists=True))
+@click.argument('chain-file', type=click.File('rb'))
 def isalive(chain_file):
-    with open(chain_file, 'r') as json_data:
-        chain = Chain.deserialize(json.loads(json_data.read()))
+    chain = Chain.deserialize(json.loads(chain_file.read()))
     print(Chainmanager.isalive(chain))
 
 
 @ethermint_testing.command(help="Checks the status of all of the nodes that form the chain")
-@click.argument('chain-file', type=click.Path(exists=True))
+@click.argument('chain-file', type=click.File('rb'))
 def status(chain_file):
-    with open(chain_file, 'r') as json_data:
-        chain = Chain.deserialize(json.loads(json_data.read()))
+    chain = Chain.deserialize(json.loads(chain_file.read()))
     print(json.dumps(Chainmanager.get_status(chain)))
 
 
@@ -89,11 +83,10 @@ def status(chain_file):
 @click.option('--fromm', '-f', default=None, type=click.INT,
               help='earliest block to look at')
 @click.option('--to', '-t', default=None, type=click.INT,
-              help='earliest block to not look at (i.e. exclusive/pythonish to)')
-@click.argument('chain-file', type=click.Path(exists=True))
+              help='last block to look at')
+@click.argument('chain-file', type=click.File('rb'))
 def history(chain_file, fromm, to):
-    with open(chain_file, 'r') as f:
-        chain = Chain.deserialize(json.loads(f.read()))
+    chain = Chain.deserialize(json.loads(chain_file.read()))
     to_print = "\n".join([str(c) for c in Chainmanager.get_history(chain, fromm, to)])
     print(to_print)
 
@@ -105,10 +98,9 @@ def history(chain_file, fromm, to):
               help='duration of delay to increase by every step (ms)')
 @click.option('--interval', '-i', default=5, type=click.INT,
               help='duration of interval between delay increase steps (s)')
-@click.argument('chain-file', type=click.Path(exists=True))
+@click.argument('chain-file', type=click.File('rb'))
 def network_fault(chain_file, num_steps, delay_step, interval):
-    with open(chain_file, 'r') as f:
-        chain = Chain.deserialize(json.loads(f.read()))
+    chain = Chain.deserialize(json.loads(chain_file.read()))
 
     result = Chainmanager.get_network_fault(chain, num_steps, delay_step, interval)
 
