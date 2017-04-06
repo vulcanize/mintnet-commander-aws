@@ -23,8 +23,6 @@ NETWORK_FAULT_PREPARATION_TIME_PER_INSTANCE = 10
 
 logger = logging.getLogger(__name__)
 
-TESTING = False
-
 
 class Chainmanager:
     def __init__(self, num_processes=None):
@@ -298,23 +296,14 @@ class Chainmanager:
             delay_start_time.isoformat()
         )
 
-        if not TESTING:
-            # NOTE: only this branch actually does the job, delaying_command must be run in parallel
-            pool = ProcessingPool(len(chain.instances))
-            delay_step_times = pool.map((lambda instance:
-                                         run_sh_script(delaying_command,
-                                                       instance.key_name,
-                                                       instance.public_ip_address)), chain.instances)
-            pool.close()
-            pool.join()
-        else:
-            # this is only in case where we're mocking and we cannot use multiprocessing of any form
-            delay_step_times = []
-            for instance in chain.instances:
-                step_time = run_sh_script(delaying_command,
-                                          instance.key_name,
-                                          instance.public_ip_address)
-                delay_step_times.append(step_time)
+        # NOTE: this multiprocessing is OK with moto
+        pool = ProcessingPool(len(chain.instances))
+        delay_step_times = pool.map((lambda instance:
+                                     run_sh_script(delaying_command,
+                                                   instance.key_name,
+                                                   instance.public_ip_address)), chain.instances)
+        pool.close()
+        pool.join()
 
         # delay_step_times is a by-instance array of strings of by-step delays
         # grab zeroth instance results for now
