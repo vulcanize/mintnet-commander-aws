@@ -112,7 +112,7 @@ def test_chainshot_return_data(chainshotter, chainmanager, mockregions, mockami,
         assert time2 < snapshot_to < time3
 
 
-def test_invalid_chainshots(chainshotter, monkeypatch):
+def test_invalid_chainshots(chainshotter, monkeypatch, moto):
     # patch to not have complains about the instance missing in aws
     monkeypatch.setattr('chainmanager.RegionInstancePair.instance', MagicMock())
     chain = Chain([RegionInstancePair(DEFAULT_REGION, 'no-instance')])
