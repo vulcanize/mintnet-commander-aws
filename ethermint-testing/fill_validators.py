@@ -7,7 +7,7 @@ ETHERMINT_GETH_GENESIS_JSON = "$GOPATH/src/github.com/tendermint/ethermint/docke
 
 
 def call_gen_validator(output_path):
-    os.system("tendermint gen_validator | tail -n +3 > {}".format(output_path))
+    os.system("tendermint gen_validator > {}".format(output_path))
 
 
 def call_init(output_dir):
